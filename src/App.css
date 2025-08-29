@@ -1,0 +1,72 @@
+
+
+
+/* src/App.css или отдельный файл, например, MatchTable.css */
+
+
+.match-table {
+  margin: 20px;
+  padding: 15px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.match-table h2 {
+  margin-top: 0;
+}
+
+.match-table table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.match-table th,
+.match-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.match-table th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+.match-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+.match-table .error {
+  color: red;
+  font-weight: bold;
+}
+/* src/App.css */
+
+/* Стили для MatchTable остаются как были */
+
+.win-loss-chart {
+  margin: 20px;
+  padding: 15px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.win-loss-chart h2 {
+  margin-top: 0;
+  text-align: center;
+}
+
+.win-loss-chart p {
+  text-align: center;
+  font-weight: bold;
+}
+
+.win-loss-chart .error {
+  color: red;
+  font-weight: bold;
+  text-align: center;
+}
+
