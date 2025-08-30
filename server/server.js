@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import * as cheerio from "cheerio";
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
 import fetch from 'node-fetch';
 import FaceitAPI from './faceit-api.js';
 import dotenv from "dotenv";
@@ -84,9 +84,14 @@ async function fetchFromHLTV(url) {
     const userAgent = getRandomUserAgent();
     
     // Запускаем браузер с улучшенными настройками для Render
+    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || 
+      (process.platform === 'win32' ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' : 
+       process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 
+       '/usr/bin/google-chrome');
+    
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      executablePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -101,6 +106,9 @@ async function fetchFromHLTV(url) {
         '--window-size=1920,1080',
         '--single-process',
         '--disable-extensions',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
         `--user-agent=${userAgent}`
       ],
     });
