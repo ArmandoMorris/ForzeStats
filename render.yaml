@@ -2,10 +2,14 @@ services:
   - type: web
     name: forze-stats-backend
     env: node
-    buildCommand: cd server && npm install && npx puppeteer browsers install chrome
+    buildCommand: cd server && npm install
     startCommand: cd server && node server.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 3001
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/.cache/puppeteer
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: false
