@@ -19,10 +19,11 @@
 - Vite (сборка)
 
 ### Backend
-- Node.js
-- Express.js
-- Puppeteer (парсинг HLTV)
+- Node.js (серверная платформа)
+- Express.js (веб-фреймворк)
+- Puppeteer (автоматизация браузера для парсинга HLTV)
 - Cheerio (парсинг HTML)
+- node-fetch (HTTP клиент)
 
 ## Установка и запуск
 
@@ -53,7 +54,7 @@ cd ..
 ### 3. Запуск сервера
 ```bash
 cd server
-npm start
+node server.js
 ```
 
 Сервер запустится на `http://localhost:3001`
@@ -77,7 +78,9 @@ forzez/
 │   ├── App.jsx                     # Главный компонент
 │   └── main.jsx                    # Точка входа
 ├── server/
-│   ├── server.js                   # Express сервер
+│   ├── server.js                   # Node.js Express сервер
+│   ├── faceit-api.js              # API для FACEIT
+│   ├── faceit-scraper.js          # Парсер FACEIT
 │   └── package.json
 ├── package.json
 └── README.md

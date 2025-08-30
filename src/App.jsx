@@ -10,6 +10,7 @@ import MatchTable from './components/MatchTable';
 import FaceitStats from './components/FaceitStats';
 import GooeyNav from './components/GooeyNav';
 import ErrorBoundary from './components/ErrorBoundary';
+import { API_ENDPOINTS } from './config';
 // Создаем тему Material-UI
 const theme = createTheme({
   palette: {
@@ -64,7 +65,7 @@ function App() {
     const fetchMatches = async () => {
       try {
         console.log('Начинаем загрузку данных...');
-        const response = await fetch('http://localhost:3001/api/forze/matches');
+        const response = await fetch(API_ENDPOINTS.matches);
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
