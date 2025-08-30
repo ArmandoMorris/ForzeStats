@@ -84,34 +84,80 @@ async function fetchFromHLTV(url) {
     const userAgent = getRandomUserAgent();
     
     // Запускаем браузер с улучшенными настройками для Render
-    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || 
-      (process.platform === 'win32' ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' : 
-       process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : 
-       '/usr/bin/google-chrome');
+    let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
     
-    browser = await puppeteer.launch({
-      headless: true,
-      executablePath,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-        '--window-size=1920,1080',
-        '--single-process',
-        '--disable-extensions',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        `--user-agent=${userAgent}`
-      ],
-    });
+    if (!executablePath) {
+      if (process.platform === 'win32') {
+        executablePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+      } else if (process.platform === 'darwin') {
+        executablePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+      } else {
+        // Для Linux пробуем разные пути
+        const possiblePaths = [
+          '/usr/bin/google-chrome',
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          '/snap/bin/chromium'
+        ];
+        
+        // Используем первый доступный путь или дефолтный
+        executablePath = possiblePaths[0];
+      }
+    }
+    
+    console.log(`Using Chrome executable path: ${executablePath}`);
+    
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        executablePath,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+          '--window-size=1920,1080',
+          '--single-process',
+          '--disable-extensions',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          `--user-agent=${userAgent}`
+        ],
+      });
+    } catch (error) {
+      console.log(`Failed to launch with executablePath ${executablePath}, trying without it...`);
+      // Пробуем без указания пути к Chrome
+      browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+          '--window-size=1920,1080',
+          '--single-process',
+          '--disable-extensions',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          `--user-agent=${userAgent}`
+        ],
+      });
+    }
 
     const page = await browser.newPage();
     
