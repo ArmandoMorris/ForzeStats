@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import * as cheerio from "cheerio";
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
 import fetch from 'node-fetch';
 import FaceitAPI from './faceit-api.js';
 import dotenv from "dotenv";
@@ -83,12 +83,35 @@ async function fetchFromHLTV(url) {
     // Получаем случайный User-Agent
     const userAgent = getRandomUserAgent();
     
-    // Запускаем браузер с простыми настройками
-    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    // Определяем путь к Chrome/Chromium
+    let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
     
+    if (!executablePath) {
+      if (process.platform === 'win32') {
+        executablePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+      } else if (process.platform === 'darwin') {
+        executablePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+      } else {
+        // Для Linux пробуем разные пути
+        const possiblePaths = [
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          '/usr/bin/google-chrome',
+          '/usr/bin/google-chrome-stable',
+          '/snap/bin/chromium'
+        ];
+        
+        // Используем первый доступный путь или дефолтный
+        executablePath = possiblePaths[0];
+      }
+    }
+    
+    console.log(`Using Chrome executable path: ${executablePath}`);
+    
+    // Запускаем браузер с улучшенными настройками
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: executablePath || undefined,
+      executablePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -98,6 +121,11 @@ async function fetchFromHLTV(url) {
         '--no-first-run',
         '--disable-gpu',
         '--window-size=1920,1080',
+        '--single-process',
+        '--disable-extensions',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
         `--user-agent=${userAgent}`
       ],
     });

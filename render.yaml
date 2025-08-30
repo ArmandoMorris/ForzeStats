@@ -2,7 +2,7 @@ services:
   - type: web
     name: forze-stats-backend
     env: node
-    buildCommand: cd server && npm install && apt-get update && apt-get install -y chromium-browser
+    buildCommand: cd server && npm install && apt-get update && apt-get install -y chromium-browser && which chromium-browser
     startCommand: cd server && node server.js
     envVars:
       - key: NODE_ENV
