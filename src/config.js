@@ -1,5 +1,5 @@
 // Конфигурация API
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://forze-stats-backend.onrender.com';
 
 export const API_ENDPOINTS = {
   matches: `${API_BASE_URL}/api/forze/matches`,

@@ -83,9 +83,10 @@ async function fetchFromHLTV(url) {
     // Получаем случайный User-Agent
     const userAgent = getRandomUserAgent();
     
-    // Запускаем браузер с улучшенными настройками
+    // Запускаем браузер с улучшенными настройками для Render
     browser = await puppeteer.launch({
       headless: true,
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -98,6 +99,8 @@ async function fetchFromHLTV(url) {
         '--no-zygote',
         '--disable-gpu',
         '--window-size=1920,1080',
+        '--single-process',
+        '--disable-extensions',
         `--user-agent=${userAgent}`
       ],
     });
