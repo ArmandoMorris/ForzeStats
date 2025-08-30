@@ -92,14 +92,14 @@ async function fetchFromHLTV(url) {
       } else if (process.platform === 'darwin') {
         executablePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
       } else {
-        // Для Linux пробуем разные пути
-        const possiblePaths = [
-          '/usr/bin/google-chrome',
-          '/usr/bin/google-chrome-stable',
-          '/usr/bin/chromium-browser',
-          '/usr/bin/chromium',
-          '/snap/bin/chromium'
-        ];
+                 // Для Linux пробуем разные пути
+         const possiblePaths = [
+           '/usr/bin/chromium-browser',
+           '/usr/bin/chromium',
+           '/usr/bin/google-chrome',
+           '/usr/bin/google-chrome-stable',
+           '/snap/bin/chromium'
+         ];
         
         // Используем первый доступный путь или дефолтный
         executablePath = possiblePaths[0];
@@ -133,30 +133,59 @@ async function fetchFromHLTV(url) {
         ],
       });
     } catch (error) {
-      console.log(`Failed to launch with executablePath ${executablePath}, trying without it...`);
-      // Пробуем без указания пути к Chrome
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-blink-features=AutomationControlled',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu',
-          '--window-size=1920,1080',
-          '--single-process',
-          '--disable-extensions',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          `--user-agent=${userAgent}`
-        ],
-      });
+      console.log(`Failed to launch with executablePath ${executablePath}, trying with channel...`);
+      // Пробуем с channel вместо executablePath
+      try {
+        browser = await puppeteer.launch({
+          headless: true,
+          channel: 'chrome',
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-blink-features=AutomationControlled',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu',
+            '--window-size=1920,1080',
+            '--single-process',
+            '--disable-extensions',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            `--user-agent=${userAgent}`
+          ],
+        });
+      } catch (channelError) {
+        console.log(`Failed to launch with channel, trying with chromium...`);
+        // Последняя попытка - используем chromium
+        browser = await puppeteer.launch({
+          headless: true,
+          channel: 'chromium',
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-blink-features=AutomationControlled',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu',
+            '--window-size=1920,1080',
+            '--single-process',
+            '--disable-extensions',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            `--user-agent=${userAgent}`
+          ],
+        });
+      }
     }
 
     const page = await browser.newPage();
