@@ -2,7 +2,7 @@ services:
   - type: web
     name: forze-stats-backend
     env: node
-    buildCommand: cd server && npm install
+    buildCommand: cd server && npm install && npx puppeteer browsers install chrome
     startCommand: cd server && node server.js
     envVars:
       - key: NODE_ENV
