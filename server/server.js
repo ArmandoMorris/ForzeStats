@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import * as cheerio from "cheerio";
-import puppeteer from 'puppeteer-core';
+import puppeteer from 'puppeteer';
 import fetch from 'node-fetch';
 import FaceitAPI from './faceit-api.js';
 import dotenv from "dotenv";
@@ -78,115 +78,26 @@ function setHltvCache(key, data) {
 async function fetchFromHLTV(url) {
   console.log(`Запрос к HLTV: ${url}`);
   
-  let browser;
+    let browser;
   try {
     // Получаем случайный User-Agent
     const userAgent = getRandomUserAgent();
     
-    // Запускаем браузер с улучшенными настройками для Render
-    let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-    
-    if (!executablePath) {
-      if (process.platform === 'win32') {
-        executablePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-      } else if (process.platform === 'darwin') {
-        executablePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-      } else {
-                 // Для Linux пробуем разные пути
-         const possiblePaths = [
-           '/usr/bin/chromium-browser',
-           '/usr/bin/chromium',
-           '/usr/bin/google-chrome',
-           '/usr/bin/google-chrome-stable',
-           '/snap/bin/chromium'
-         ];
-        
-        // Используем первый доступный путь или дефолтный
-        executablePath = possiblePaths[0];
-      }
-    }
-    
-    console.log(`Using Chrome executable path: ${executablePath}`);
-    
-    try {
-      browser = await puppeteer.launch({
-        headless: true,
-        executablePath,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-blink-features=AutomationControlled',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu',
-          '--window-size=1920,1080',
-          '--single-process',
-          '--disable-extensions',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          `--user-agent=${userAgent}`
-        ],
-      });
-    } catch (error) {
-      console.log(`Failed to launch with executablePath ${executablePath}, trying with channel...`);
-      // Пробуем с channel вместо executablePath
-      try {
-        browser = await puppeteer.launch({
-          headless: true,
-          channel: 'chrome',
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-blink-features=AutomationControlled',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu',
-            '--window-size=1920,1080',
-            '--single-process',
-            '--disable-extensions',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            `--user-agent=${userAgent}`
-          ],
-        });
-      } catch (channelError) {
-        console.log(`Failed to launch with channel, trying with chromium...`);
-        // Последняя попытка - используем chromium
-        browser = await puppeteer.launch({
-          headless: true,
-          channel: 'chromium',
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-blink-features=AutomationControlled',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu',
-            '--window-size=1920,1080',
-            '--single-process',
-            '--disable-extensions',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            `--user-agent=${userAgent}`
-          ],
-        });
-      }
-    }
+    // Запускаем браузер с простыми настройками
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-web-security',
+        '--disable-dev-shm-usage',
+        '--no-first-run',
+        '--disable-gpu',
+        '--window-size=1920,1080',
+        `--user-agent=${userAgent}`
+      ],
+    });
 
     const page = await browser.newPage();
     
