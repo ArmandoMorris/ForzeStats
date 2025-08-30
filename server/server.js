@@ -84,8 +84,11 @@ async function fetchFromHLTV(url) {
     const userAgent = getRandomUserAgent();
     
     // Запускаем браузер с простыми настройками
+    const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    
     browser = await puppeteer.launch({
       headless: true,
+      executablePath: executablePath || undefined,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
