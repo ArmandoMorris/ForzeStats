@@ -124,6 +124,7 @@ function App() {
       setLoading(true);
       setError(null);
 
+      // Загружаем только HLTV данные для основной вкладки
       const response = await fetch("http://localhost:3001/api/forze/matches");
 
       if (!response.ok) {
@@ -131,14 +132,14 @@ function App() {
       }
 
       const data = await response.json();
-      console.log("Данные получены:", data);
+      console.log("HLTV данные получены:", data);
       console.log("Количество матчей:", data.matches ? data.matches.length : 0);
 
       setMatches(data.matches || []);
       setLastUpdate(new Date());
 
       if (data.matches && data.matches.length > 0) {
-        showSnackbar(`Загружено ${data.matches.length} матчей`, "success");
+        showSnackbar(`Загружено ${data.matches.length} матчей HLTV`, "success");
       }
     } catch (err) {
       console.error("Ошибка при получении данных:", err);
@@ -304,16 +305,16 @@ function App() {
           </ErrorBoundary>
         ) : activeTab === "hltv" ? (
           <>
-            <Box sx={{ mt: 3, mb: 2, textAlign: "center" }}>
-              <Typography variant="h6" color="primary">
-                Загружено матчей: {matches.length}
-              </Typography>
-              {matches.length === 3 && (
-                <Alert severity="warning" sx={{ mt: 1 }}>
-                  Используются тестовые данные (сервер недоступен)
-                </Alert>
-              )}
-            </Box>
+                         <Box sx={{ mt: 3, mb: 2, textAlign: "center" }}>
+               <Typography variant="h6" color="primary">
+                 Загружено матчей HLTV: {matches.length}
+               </Typography>
+               {matches.length === 3 && (
+                 <Alert severity="warning" sx={{ mt: 1 }}>
+                   Используются тестовые данные (сервер недоступен)
+                 </Alert>
+               )}
+             </Box>
 
             <ErrorBoundary>
               <MaterialChart matches={matches} />

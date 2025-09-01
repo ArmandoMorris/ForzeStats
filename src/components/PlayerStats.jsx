@@ -17,6 +17,10 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
+  Tab,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import {
   Person,
@@ -25,103 +29,68 @@ import {
   Refresh,
   EmojiEvents,
   Timeline,
+  SportsEsports,
+  OpenInNew,
+  Launch,
 } from "@mui/icons-material";
 
 const PlayerStats = () => {
-  const [roster, setRoster] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState(0);
+  const [hltvPlayers, setHltvPlayers] = useState([]);
+  const [faceitPlayers, setFaceitPlayers] = useState([]);
+  const [hltvLoading, setHltvLoading] = useState(true);
+  const [faceitLoading, setFaceitLoading] = useState(true);
+  const [hltvError, setHltvError] = useState(null);
+  const [faceitError, setFaceitError] = useState(null);
 
-  const fetchRoster = async () => {
+  const fetchHltvPlayers = async () => {
     try {
-      setLoading(true);
-      setError(null);
+      setHltvLoading(true);
+      setHltvError(null);
 
-      const response = await fetch("http://localhost:3001/api/forze/roster");
+      const response = await fetch("http://localhost:3001/api/forze/players");
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
-      setRoster(data.roster || []);
+      setHltvPlayers(data.players || []);
     } catch (err) {
-      console.error("Error fetching roster:", err);
-      setError(err.message);
-
-      // Тестовые данные
-      setRoster([
-        {
-          id: "player_1",
-          nickname: "sh1ro",
-          status: "STARTER",
-          rating30: "1.25",
-        },
-        {
-          id: "player_2",
-          nickname: "interz",
-          status: "STARTER",
-          rating30: "1.18",
-        },
-        {
-          id: "player_3",
-          nickname: "nafany",
-          status: "STARTER",
-          rating30: "1.12",
-        },
-        {
-          id: "player_4",
-          nickname: "Ax1Le",
-          status: "STARTER",
-          rating30: "1.20",
-        },
-        {
-          id: "player_5",
-          nickname: "Hobbit",
-          status: "STARTER",
-          rating30: "1.15",
-        },
-      ]);
+      console.error("Error fetching HLTV players:", err);
+      setHltvError(err.message);
     } finally {
-      setLoading(false);
+      setHltvLoading(false);
+    }
+  };
+
+  const fetchFaceitPlayers = async () => {
+    try {
+      setFaceitLoading(true);
+      setFaceitError(null);
+
+      const response = await fetch("http://localhost:3001/api/faceit/players");
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setFaceitPlayers(data.players || []);
+    } catch (err) {
+      console.error("Error fetching FACEIT players:", err);
+      setFaceitError(err.message);
+    } finally {
+      setFaceitLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRoster();
+    fetchHltvPlayers();
+    fetchFaceitPlayers();
   }, []);
 
-  if (loading) {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "400px",
-        }}
-      >
-        <CircularProgress size={60} />
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert severity="error" sx={{ m: 2 }}>
-        Ошибка загрузки состава: {error}
-        <Box sx={{ mt: 1 }}>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={fetchRoster}
-            startIcon={<Refresh />}
-          >
-            Попробовать снова
-          </Button>
-        </Box>
-      </Alert>
-    );
-  }
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -134,22 +103,202 @@ const PlayerStats = () => {
     }
   };
 
-  const getRatingColor = (rating) => {
+  const getRatingColor = (rating, source) => {
     const numRating = parseFloat(rating);
-    if (numRating >= 1.2) return "success";
-    if (numRating >= 1.1) return "primary";
-    if (numRating >= 1.0) return "warning";
-    return "error";
+    if (source === "HLTV") {
+      if (numRating >= 1.2) return "success";
+      if (numRating >= 1.1) return "primary";
+      if (numRating >= 1.0) return "warning";
+      return "error";
+    } else {
+      // FACEIT рейтинг (1-10)
+      if (numRating >= 8) return "success";
+      if (numRating >= 6) return "primary";
+      if (numRating >= 4) return "warning";
+      return "error";
+    }
   };
 
-  return (
-    <Box sx={{ py: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ mb: 3, textAlign: "center" }}>
-        <Person sx={{ mr: 1, verticalAlign: "middle" }} />
-        Состав команды FORZE Reload
-      </Typography>
+  const getSourceIcon = (source) => {
+    switch (source) {
+      case "HLTV":
+        return <Timeline />;
+      case "FACEIT":
+        return <SportsEsports />;
+      default:
+        return <Timeline />;
+    }
+  };
 
-      {/* Статистика команды */}
+  const getSourceColor = (source) => {
+    switch (source) {
+      case "HLTV":
+        return "primary";
+      case "FACEIT":
+        return "secondary";
+      default:
+        return "default";
+    }
+  };
+
+  const renderPlayerTable = (players, source, loading, error) => {
+    if (loading) {
+      return (
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: "400px",
+          }}
+        >
+          <CircularProgress size={60} />
+        </Box>
+      );
+    }
+
+    if (error) {
+      return (
+        <Alert severity="error" sx={{ m: 2 }}>
+          Ошибка загрузки игроков {source}: {error}
+          <Box sx={{ mt: 1 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={source === "HLTV" ? fetchHltvPlayers : fetchFaceitPlayers}
+              startIcon={<Refresh />}
+            >
+              Попробовать снова
+            </Button>
+          </Box>
+        </Alert>
+      );
+    }
+
+    if (players.length === 0) {
+      return (
+        <Alert severity="info" sx={{ m: 2 }}>
+          Нет данных об игроках {source}
+        </Alert>
+      );
+    }
+
+    return (
+      <TableContainer component={Paper} elevation={2}>
+        <Table>
+          <TableHead>
+            <TableRow sx={{ backgroundColor: "grey.50" }}>
+              <TableCell>
+                <Typography variant="subtitle2">Игрок</Typography>
+              </TableCell>
+              <TableCell align="center">
+                <Typography variant="subtitle2">Статус</Typography>
+              </TableCell>
+              <TableCell align="center">
+                <Typography variant="subtitle2">
+                  Рейтинг {source === "HLTV" ? "(30 дней)" : "(Уровень)"}
+                </Typography>
+              </TableCell>
+              <TableCell align="center">
+                <Typography variant="subtitle2">Карты</Typography>
+              </TableCell>
+              <TableCell align="center">
+                <Typography variant="subtitle2">K/D</Typography>
+              </TableCell>
+              <TableCell align="center">
+                <Typography variant="subtitle2">Действия</Typography>
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {players.map((player) => (
+              <TableRow
+                key={player.id}
+                sx={{
+                  "&:nth-of-type(odd)": { backgroundColor: "grey.50" },
+                  "&:hover": { backgroundColor: "grey.100" },
+                }}
+              >
+                <TableCell>
+                  <Box
+                    sx={{ display: "flex", alignItems: "center", gap: 2 }}
+                  >
+                    <Avatar sx={{ bgcolor: getSourceColor(source) }}>
+                      <Person />
+                    </Avatar>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {player.nickname}
+                    </Typography>
+                  </Box>
+                </TableCell>
+                <TableCell align="center">
+                  <Chip
+                    label={player.status}
+                    color={getStatusColor(player.status)}
+                    size="small"
+                    icon={player.status === "STARTER" ? <Star /> : <Timeline />}
+                  />
+                </TableCell>
+                <TableCell align="center">
+                  <Chip
+                    label={player.rating30}
+                    color={getRatingColor(player.rating30, source)}
+                    size="small"
+                    icon={<TrendingUp />}
+                  />
+                </TableCell>
+                <TableCell align="center">
+                  <Typography variant="body2">
+                    {player.stats?.maps || "0"}
+                  </Typography>
+                </TableCell>
+                <TableCell align="center">
+                  <Typography variant="body2">
+                    {player.stats?.kd || "0.00"}
+                  </Typography>
+                </TableCell>
+                <TableCell align="center">
+                  <Box sx={{ display: "flex", gap: 1 }}>
+                    {player.profileUrl && (
+                      <Tooltip title="Открыть профиль">
+                        <IconButton
+                          size="small"
+                          onClick={() => window.open(player.profileUrl, "_blank")}
+                        >
+                          <OpenInNew />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={() => {
+                        console.log("Player details:", player);
+                      }}
+                    >
+                      Детали
+                    </Button>
+                  </Box>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    );
+  };
+
+  const renderStatsCards = (players, source) => {
+    if (players.length === 0) return null;
+
+    const total = players.length;
+    const starters = players.filter((p) => p.status === "STARTER").length;
+    const benched = players.filter((p) => p.status === "BENCHED").length;
+    const averageRating = players.length > 0 
+      ? (players.reduce((sum, p) => sum + parseFloat(p.rating30 || 0), 0) / players.length).toFixed(2)
+      : "0.00";
+
+    return (
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={3}>
           <Card elevation={3}>
@@ -158,7 +307,7 @@ const PlayerStats = () => {
                 Всего игроков
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: "bold" }}>
-                {roster.length}
+                {total}
               </Typography>
             </CardContent>
           </Card>
@@ -174,7 +323,7 @@ const PlayerStats = () => {
                 variant="h4"
                 sx={{ fontWeight: "bold", color: "success.main" }}
               >
-                {roster.filter((p) => p.status === "STARTER").length}
+                {starters}
               </Typography>
             </CardContent>
           </Card>
@@ -190,7 +339,7 @@ const PlayerStats = () => {
                 variant="h4"
                 sx={{ fontWeight: "bold", color: "warning.main" }}
               >
-                {roster.filter((p) => p.status === "BENCHED").length}
+                {benched}
               </Typography>
             </CardContent>
           </Card>
@@ -206,121 +355,91 @@ const PlayerStats = () => {
                 variant="h4"
                 sx={{ fontWeight: "bold", color: "info.main" }}
               >
-                {(
-                  roster.reduce(
-                    (sum, p) => sum + parseFloat(p.rating30 || 0),
-                    0
-                  ) / roster.length
-                ).toFixed(2)}
+                {averageRating}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+    );
+  };
 
-      {/* Таблица игроков */}
-      <Card elevation={2}>
-        <CardContent>
-          <Typography
-            variant="h6"
-            gutterBottom
-            sx={{ mb: 2, display: "flex", alignItems: "center" }}
-          >
-            <EmojiEvents sx={{ mr: 1 }} />
-            Детальная статистика игроков
-          </Typography>
+  return (
+    <Box sx={{ py: 3 }}>
+      <Typography variant="h4" gutterBottom sx={{ mb: 3, textAlign: "center" }}>
+        <Person sx={{ mr: 1, verticalAlign: "middle" }} />
+        Статистика игроков команды FORZE Reload
+      </Typography>
 
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow sx={{ backgroundColor: "grey.50" }}>
-                  <TableCell>
-                    <Typography variant="subtitle2">Игрок</Typography>
-                  </TableCell>
-                  <TableCell align="center">
-                    <Typography variant="subtitle2">Статус</Typography>
-                  </TableCell>
-                  <TableCell align="center">
-                    <Typography variant="subtitle2">
-                      Рейтинг (30 дней)
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="center">
-                    <Typography variant="subtitle2">Действия</Typography>
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {roster.map((player) => (
-                  <TableRow
-                    key={player.id}
-                    sx={{
-                      "&:nth-of-type(odd)": { backgroundColor: "grey.50" },
-                      "&:hover": { backgroundColor: "grey.100" },
-                    }}
-                  >
-                    <TableCell>
-                      <Box
-                        sx={{ display: "flex", alignItems: "center", gap: 2 }}
-                      >
-                        <Avatar sx={{ bgcolor: "primary.main" }}>
-                          <Person />
-                        </Avatar>
-                        <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                          {player.nickname}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Chip
-                        label={player.status}
-                        color={getStatusColor(player.status)}
-                        size="small"
-                        icon={
-                          player.status === "STARTER" ? <Star /> : <Timeline />
-                        }
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <Chip
-                        label={player.rating30}
-                        color={getRatingColor(player.rating30)}
-                        size="small"
-                        icon={<TrendingUp />}
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => {
-                          console.log("Player details:", player);
-                        }}
-                      >
-                        Детали
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
+      {/* Вкладки */}
+      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+        <Tabs value={activeTab} onChange={handleTabChange} centered>
+          <Tab 
+            label="HLTV" 
+            icon={<Timeline />} 
+            iconPosition="start"
+            sx={{ minHeight: 64 }}
+          />
+          <Tab 
+            label="FACEIT" 
+            icon={<SportsEsports />} 
+            iconPosition="start"
+            sx={{ minHeight: 64 }}
+          />
+        </Tabs>
+      </Box>
+
+      {/* Контент вкладок */}
+      {activeTab === 0 && (
+        <Box>
+          {renderStatsCards(hltvPlayers, "HLTV")}
+          <Card elevation={2}>
+            <CardContent>
+              <Typography
+                variant="h6"
+                gutterBottom
+                sx={{ mb: 2, display: "flex", alignItems: "center" }}
+              >
+                <Timeline sx={{ mr: 1 }} />
+                Статистика игроков HLTV
+              </Typography>
+              {renderPlayerTable(hltvPlayers, "HLTV", hltvLoading, hltvError)}
+            </CardContent>
+          </Card>
+        </Box>
+      )}
+
+      {activeTab === 1 && (
+        <Box>
+          {renderStatsCards(faceitPlayers, "FACEIT")}
+          <Card elevation={2}>
+            <CardContent>
+              <Typography
+                variant="h6"
+                gutterBottom
+                sx={{ mb: 2, display: "flex", alignItems: "center" }}
+              >
+                <SportsEsports sx={{ mr: 1 }} />
+                Статистика игроков FACEIT
+              </Typography>
+              {renderPlayerTable(faceitPlayers, "FACEIT", faceitLoading, faceitError)}
+            </CardContent>
+          </Card>
+        </Box>
+      )}
 
       {/* Информация о команде */}
       <Paper elevation={1} sx={{ p: 3, mt: 3, textAlign: "center" }}>
         <Typography variant="h6" gutterBottom>
-          <EmojiEvents sx={{ mr: 1, verticalAlign: "middle" }} />О команде FORZE
-          Reload
+          <EmojiEvents sx={{ mr: 1, verticalAlign: "middle" }} />
+          О команде FORZE Reload
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          FORZE Reload - российская профессиональная команда по Counter-Strike
-          2. Команда участвует в международных турнирах и показывает высокие
-          результаты.
+          FORZE Reload - российская профессиональная команда по Counter-Strike 2. 
+          Команда участвует в международных турнирах и показывает высокие результаты.
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Данные обновляются в реальном времени с официальных источников HLTV.
+          Данные обновляются в реальном времени с официальных источников HLTV и FACEIT.
         </Typography>
       </Paper>
     </Box>

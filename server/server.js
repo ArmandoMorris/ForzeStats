@@ -42,6 +42,7 @@ const cache = {
   hltv: {
     matches: { data: null, ts: 0 },
     roster: { data: null, ts: 0 },
+    players: { data: null, ts: 0 },
     upcoming: { data: null, ts: 0 },
   },
 };
@@ -294,6 +295,74 @@ function parseStatsMatches(html) {
   return rows;
 }
 
+function parseHltvPlayers(html) {
+  console.log("🔍 Начинаем парсинг HLTV игроков");
+  console.log(`📄 Размер HTML: ${html.length} символов`);
+
+  const $ = cheerio.load(html);
+  const players = [];
+
+  // Ищем секцию с игроками (rosterBox)
+  const rosterSection = $('[id="rosterBox"]');
+  if (rosterSection.length === 0) {
+    console.log("❌ Не найдена секция rosterBox");
+    return [];
+  }
+
+  console.log("✅ Найдена секция rosterBox");
+
+  // Ищем карточки игроков
+  const playerCards = rosterSection.find('.rosterPlayer');
+  console.log(`👥 Найдено карточек игроков: ${playerCards.length}`);
+
+  playerCards.each((index, card) => {
+    const $card = $(card);
+    
+    // Извлекаем никнейм
+    const nickname = $card.find('.rosterPlayerName').text().trim();
+    
+    // Извлекаем статус (STARTER/BENCHED)
+    const statusElement = $card.find('.rosterPlayerStatus');
+    const status = statusElement.text().trim().toUpperCase();
+    
+    // Извлекаем рейтинг за 30 дней
+    const ratingElement = $card.find('.rosterPlayerRating');
+    const rating30 = ratingElement.text().trim() || "0.00";
+    
+    // Извлекаем ссылку на профиль игрока
+    const profileLink = $card.find('a').attr('href');
+    const playerId = profileLink ? profileLink.split('/')[2] : `player_${index}`;
+    
+    // Извлекаем статистику
+    const statsElement = $card.find('.rosterPlayerStats');
+    const stats = {
+      rating30: rating30,
+      maps: $card.find('.rosterPlayerMaps').text().trim() || "0",
+      kd: $card.find('.rosterPlayerKD').text().trim() || "0.00",
+      kills: $card.find('.rosterPlayerKills').text().trim() || "0",
+      deaths: $card.find('.rosterPlayerDeaths').text().trim() || "0",
+    };
+
+    console.log(`Игрок ${index + 1}:`);
+    console.log(`  Никнейм: "${nickname}"`);
+    console.log(`  Статус: "${status}"`);
+    console.log(`  Рейтинг 30д: "${rating30}"`);
+    console.log(`  ID: "${playerId}"`);
+
+    players.push({
+      id: playerId,
+      nickname: nickname,
+      status: status,
+      rating30: rating30,
+      stats: stats,
+      profileUrl: profileLink ? `https://www.hltv.org${profileLink}` : null,
+    });
+  });
+
+  console.log(`📊 Обработано игроков: ${players.length}`);
+  return players;
+}
+
 // Middleware для логирования запросов
 app.use((req, res, next) => {
   console.log(`📥 ${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -308,6 +377,215 @@ app.get("/api/health", (req, res) => {
     uptime: process.uptime(),
     memory: process.memoryUsage(),
   });
+});
+
+// HLTV Players endpoint
+app.get("/api/forze/players", async (req, res) => {
+  try {
+    console.log("🎯 GET /api/forze/players requested");
+
+    // Проверяем кэш
+    const cached = getCache("hltv", "players");
+    if (cached) {
+      console.log("✅ Returning cached HLTV players");
+      return res.json(cached);
+    }
+
+    const url = `https://www.hltv.org/team/${TEAM_ID}/${TEAM_SLUG}#tab-rosterBox`;
+    const html = await fetchHtml(url);
+    const players = parseHltvPlayers(html);
+
+    const result = {
+      source: "HLTV",
+      players: players,
+      total: players.length,
+      starters: players.filter((p) => p.status === "STARTER").length,
+      benched: players.filter((p) => p.status === "BENCHED").length,
+      averageRating: players.length > 0 
+        ? (players.reduce((sum, p) => sum + parseFloat(p.rating30 || 0), 0) / players.length).toFixed(2)
+        : "0.00",
+      lastUpdated: new Date().toISOString(),
+    };
+
+    setCache("hltv", "players", result);
+    res.json(result);
+  } catch (error) {
+    console.error("❌ Error fetching HLTV players:", error.message);
+
+    // Fallback данные
+    const fallbackData = {
+      source: "HLTV (Fallback)",
+      players: [
+        {
+          id: "player_1",
+          nickname: "sh1ro",
+          status: "STARTER",
+          rating30: "1.25",
+          stats: {
+            rating30: "1.25",
+            maps: "45",
+            kd: "1.35",
+            kills: "567",
+            deaths: "420",
+          },
+          profileUrl: "https://www.hltv.org/player/7998/sh1ro",
+        },
+        {
+          id: "player_2",
+          nickname: "interz",
+          status: "STARTER",
+          rating30: "1.18",
+          stats: {
+            rating30: "1.18",
+            maps: "42",
+            kd: "1.22",
+            kills: "489",
+            deaths: "401",
+          },
+          profileUrl: "https://www.hltv.org/player/7998/interz",
+        },
+        {
+          id: "player_3",
+          nickname: "nafany",
+          status: "STARTER",
+          rating30: "1.12",
+          stats: {
+            rating30: "1.12",
+            maps: "38",
+            kd: "1.15",
+            kills: "423",
+            deaths: "368",
+          },
+          profileUrl: "https://www.hltv.org/player/7998/nafany",
+        },
+        {
+          id: "player_4",
+          nickname: "Ax1Le",
+          status: "STARTER",
+          rating30: "1.20",
+          stats: {
+            rating30: "1.20",
+            maps: "40",
+            kd: "1.28",
+            kills: "512",
+            deaths: "400",
+          },
+          profileUrl: "https://www.hltv.org/player/7998/Ax1Le",
+        },
+        {
+          id: "player_5",
+          nickname: "Hobbit",
+          status: "STARTER",
+          rating30: "1.15",
+          stats: {
+            rating30: "1.15",
+            maps: "35",
+            kd: "1.18",
+            kills: "445",
+            deaths: "377",
+          },
+          profileUrl: "https://www.hltv.org/player/7998/Hobbit",
+        },
+      ],
+      total: 5,
+      starters: 5,
+      benched: 0,
+      averageRating: "1.18",
+      lastUpdated: new Date().toISOString(),
+    };
+
+    res.json(fallbackData);
+  }
+});
+
+// FACEIT Players endpoint
+app.get("/api/faceit/players", async (req, res) => {
+  try {
+    console.log("🎯 GET /api/faceit/players requested");
+
+    // Проверяем кэш
+    const cached = getCache("faceit", "players");
+    if (cached) {
+      console.log("✅ Returning cached FACEIT players");
+      return res.json(cached);
+    }
+
+    const faceitAPI = new FaceitAPI();
+    const teamData = await faceitAPI.getTeamData();
+    const players = teamData.teamInfo?.players || [];
+
+    const result = {
+      source: "FACEIT",
+      players: players.map(player => ({
+        id: player.player_id,
+        nickname: player.nickname,
+        status: "STARTER", // FACEIT не различает STARTER/BENCHED
+        rating30: player.games?.cs2?.skill_level || "0",
+        stats: {
+          rating30: player.games?.cs2?.skill_level || "0",
+          maps: player.games?.cs2?.game_count || "0",
+          kd: "0.00", // FACEIT не предоставляет K/D
+          kills: "0",
+          deaths: "0",
+        },
+        profileUrl: `https://www.faceit.com/en/players/${player.nickname}`,
+      })),
+      total: players.length,
+      starters: players.length,
+      benched: 0,
+      averageRating: players.length > 0 
+        ? (players.reduce((sum, p) => sum + parseInt(p.games?.cs2?.skill_level || 0), 0) / players.length).toFixed(0)
+        : "0",
+      lastUpdated: new Date().toISOString(),
+    };
+
+    setCache("faceit", "players", result);
+    res.json(result);
+  } catch (error) {
+    console.error("❌ Error fetching FACEIT players:", error.message);
+
+    // Fallback данные
+    const fallbackData = {
+      source: "FACEIT (Fallback)",
+      players: [
+        {
+          id: "faceit_player_1",
+          nickname: "KusMe",
+          status: "STARTER",
+          rating30: "8",
+          stats: {
+            rating30: "8",
+            maps: "327",
+            kd: "0.00",
+            kills: "0",
+            deaths: "0",
+          },
+          profileUrl: "https://www.faceit.com/en/players/KusMe",
+        },
+        {
+          id: "faceit_player_2",
+          nickname: "FORZE_Player2",
+          status: "STARTER",
+          rating30: "7",
+          stats: {
+            rating30: "7",
+            maps: "250",
+            kd: "0.00",
+            kills: "0",
+            deaths: "0",
+          },
+          profileUrl: "https://www.faceit.com/en/players/FORZE_Player2",
+        },
+      ],
+      total: 2,
+      starters: 2,
+      benched: 0,
+      averageRating: "7.5",
+      lastUpdated: new Date().toISOString(),
+    };
+
+    res.json(fallbackData);
+  }
 });
 
 // HLTV Matches endpoint
@@ -494,10 +772,25 @@ app.get("/api/faceit/matches", async (req, res) => {
     }
 
     const faceitAPI = new FaceitAPI();
-    const matches = await faceitAPI.getTeamMatches();
+    
+    // Получаем матчи с использованием client-side ключа
+    console.log("🔑 Используем client-side ключ для получения матчей...");
+    const matches = await faceitAPI.getAllMatches();
+    
+    // Форматируем матчи для фронтенда
+    const formattedMatches = faceitAPI.formatMatchesForFrontend(matches);
+    
+    const result = {
+      source: "FACEIT",
+      matches: formattedMatches,
+      total: formattedMatches.length,
+      wins: formattedMatches.filter(m => m.wl === 'W').length,
+      losses: formattedMatches.filter(m => m.wl === 'L').length,
+      lastUpdated: new Date().toISOString(),
+    };
 
-    setCache("faceit", "matches", matches);
-    res.json(matches);
+    setCache("faceit", "matches", result);
+    res.json(result);
   } catch (error) {
     console.error("❌ Error fetching FACEIT matches:", error.message);
 
@@ -542,19 +835,52 @@ app.get("/api/faceit/combined", async (req, res) => {
     console.log("🎯 GET /api/faceit/combined requested");
 
     const faceitAPI = new FaceitAPI();
-    const [stats, matches] = await Promise.all([
-      faceitAPI.getTeamStats(),
-      faceitAPI.getAllMatches(),
-    ]);
-
+    
+    // Попробуем получить данные по частям для лучшей диагностики
+    console.log("🔍 Получаем данные FACEIT по частям...");
+    
+    let teamInfo, teamStats, matches;
+    
+    try {
+      teamInfo = await faceitAPI.getTeamInfo();
+      console.log("✅ Получена информация о команде:", teamInfo.name);
+    } catch (error) {
+      console.error("❌ Ошибка получения информации о команде:", error.message);
+      teamInfo = { name: "FORZE Reload", level: "Unknown" };
+    }
+    
+    try {
+      teamStats = await faceitAPI.getTeamStats();
+      console.log("✅ Получена статистика команды:", teamStats.totalMatches, "матчей");
+    } catch (error) {
+      console.error("❌ Ошибка получения статистики команды:", error.message);
+      teamStats = {
+        totalMatches: 0,
+        wins: 0,
+        losses: 0,
+        winRate: 0
+      };
+    }
+    
+    try {
+      matches = await faceitAPI.getAllMatches();
+      console.log("✅ Получены матчи команды:", matches.length, "матчей");
+    } catch (error) {
+      console.error("❌ Ошибка получения матчей команды:", error.message);
+      matches = [];
+    }
+    
+    const formattedMatches = faceitAPI.formatMatchesForFrontend(matches);
+    
     const combined = {
       source: "FACEIT",
-      stats,
+      teamInfo: teamInfo,
+      teamStats: teamStats,
       matches: {
-        matches: matches,
-        total: matches.length,
-        wins: matches.filter((m) => m.i17 === "1").length,
-        losses: matches.filter((m) => m.i17 === "0").length,
+        matches: formattedMatches,
+        total: teamStats.totalMatches,
+        wins: teamStats.wins,
+        losses: teamStats.losses,
       },
       lastUpdated: new Date().toISOString(),
     };
@@ -566,19 +892,19 @@ app.get("/api/faceit/combined", async (req, res) => {
     // Fallback данные
     const fallbackData = {
       source: "FACEIT (Fallback)",
-      stats: {
-        team: {
-          name: "FORZE Reload",
-          elo: 1250,
-          level: 10,
-        },
-        stats: {
-          totalMatches: 45,
-          wins: 32,
-          losses: 13,
-          winRate: 71.1,
-          averageScore: "16-12",
-        },
+      teamInfo: {
+        name: "FORZE Reload",
+        level: "Level 8",
+        elo: 1250
+      },
+      teamStats: {
+        'Total Matches': '45',
+        'Wins': '32',
+        'Losses': '13',
+        'Win Rate': '71.1%',
+        'Current Streak': '+3',
+        'Max Win Streak': '8',
+        'Max Loss Streak': '2'
       },
       matches: {
         matches: [
@@ -658,41 +984,41 @@ app.get("/api/stats/overview", async (req, res) => {
     let faceitData;
     
     if (faceitCached) {
-      console.log("✅ Используем кэшированные данные Faceit");
+      console.log("✅ Используем кэшированные данные Faceit (stats)");
       faceitData = faceitCached;
     } else {
-      console.log("🔄 Получаем свежие данные Faceit...");
+      console.log("🔄 Получаем свежие данные Faceit (stats)...");
       try {
         const faceitAPI = new FaceitAPI();
-        const stats = await faceitAPI.getTeamStats("8689f8ac-c01b-40f4-96c6-9e7627665b65");
-        faceitData = stats;
+        const stats = await faceitAPI.getTeamStats();
+        
+        faceitData = {
+          matches: [], // Не загружаем матчи для overview
+          totalMatches: stats.totalMatches,
+          wins: stats.wins,
+          losses: stats.losses,
+          winRate: stats.winRate
+        };
         setCache("faceit", "stats", faceitData);
       } catch (error) {
-        console.error("❌ Ошибка получения данных Faceit:", error);
-        faceitData = { stats: { totalMatches: 0, wins: 0, losses: 0, winRate: 0 } };
+        console.error("❌ Ошибка получения данных Faceit (stats):", error);
+        faceitData = { 
+          matches: [],
+          totalMatches: 0,
+          wins: 0,
+          losses: 0,
+          winRate: 0
+        };
       }
     }
 
-    // Приводим FACEIT данные к единому формату чисел
-    let faceitMatches = 0;
-    let faceitWins = 0;
-    let faceitLosses = 0;
-    let faceitWinRate = 0;
-
-    if (faceitData?.stats?.totalMatches !== undefined) {
-      // Поддержка формы { stats: { totalMatches, wins, losses, winRate } }
-      faceitMatches = Number(faceitData.stats.totalMatches) || 0;
-      faceitWins = Number(faceitData.stats.wins) || 0;
-      faceitLosses = Number(faceitData.stats.losses) || 0;
-      faceitWinRate = Number(faceitData.stats.winRate) || 0;
-    } else if (faceitData?.teamStats) {
-      // Поддержка формы из FaceitAPI.getTeamStats() с текстовыми значениями
-      const ts = faceitData.teamStats;
-      faceitMatches = Number(ts['Total Matches'] || 0) || 0;
-      faceitWins = Number(ts['Wins'] || 0) || 0;
-      faceitLosses = Number(ts['Losses'] || 0) || 0;
-      faceitWinRate = parseFloat(String(ts['Win Rate'] || '0').replace('%', '')) || 0;
-    }
+    // Получаем FACEIT данные из нового формата
+    const faceitMatches = Number(faceitData?.totalMatches || 0);
+    const faceitWins = Number(faceitData?.wins || 0);
+    const faceitLosses = Number(faceitData?.losses || 0);
+    const faceitWinRate = Number(faceitData?.winRate || 0);
+    
+    console.log(`🔍 Faceit данные: matches=${faceitMatches}, wins=${faceitWins}, losses=${faceitLosses}, winRate=${faceitWinRate}`);
 
     const overview = {
       totalMatches: (hltvData.total || 0) + faceitMatches,

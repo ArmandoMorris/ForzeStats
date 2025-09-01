@@ -28,32 +28,54 @@ const FaceitStats = () => {
       try {
         setLoading(true);
         
-        // Загружаем комбинированные данные (стата + матчи) одним запросом
-        const resp = await fetch('http://localhost:3001/api/faceit/combined');
-        if (!resp.ok) {
-          throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        // Загружаем статистику и матчи отдельно
+        const [statsResp, matchesResp] = await Promise.all([
+          fetch('http://localhost:3001/api/faceit/stats'),
+          fetch('http://localhost:3001/api/faceit/matches')
+        ]);
+        
+        if (!statsResp.ok) {
+          throw new Error(`HTTP ${statsResp.status}: ${statsResp.statusText}`);
         }
-        const combined = await resp.json();
-        console.log('FACEIT combined received:', combined);
+        
+        if (!matchesResp.ok) {
+          throw new Error(`HTTP ${matchesResp.status}: ${matchesResp.statusText}`);
+        }
+        
+        const statsData = await statsResp.json();
+        const matchesData = await matchesResp.json();
+        
+        console.log('FACEIT stats received:', statsData);
+        console.log('FACEIT matches received:', matchesData);
 
-        const statsData = combined.stats;
-        const rawMatches = combined.matches?.matches || [];
+        const rawMatches = matchesData.matches || [];
+        
+        // Используем статистику из API, а не вычисляем из матчей
+        const stats = {
+          totalMatches: statsData.totalMatches || 0,
+          wins: statsData.wins || 0,
+          losses: statsData.losses || 0,
+          winRate: statsData.winRate || 0
+        };
 
         // Трансформируем матчи в формат, совместимый с графиками/таблицей
         const transformedMatches = rawMatches.map((match) => {
-          const isWin = match.i17 === '1';
-          const d = new Date(match.date);
+          const isWin = match.wl === 'W';
+          const d = new Date(match.dateISO);
           const dd = String(d.getDate()).padStart(2, '0');
           const mm = String(d.getMonth() + 1).padStart(2, '0');
           const yyyy = d.getFullYear();
           const formattedDate = `${dd}.${mm}.${yyyy}`;
           return {
             date: formattedDate,
-            wl: isWin ? 'W' : 'L',
-            result: match.i18 || 'N/A',
-            opponent: 'FACEIT',
-            map: match.i1 || 'Unknown',
-            event: 'FACEIT Match',
+            wl: match.wl,
+            result: match.result,
+            opponent: match.opponent,
+            map: match.map,
+            event: match.event,
+            our: match.our,
+            opp: match.opp,
+            source: match.source
           };
         });
 
@@ -64,13 +86,10 @@ const FaceitStats = () => {
         console.error('Error fetching FACEIT data:', err);
         setError(err.message);
         setStats({
-          teamStats: {
-            'Total Matches': '0',
-            'Wins': '0',
-            'Losses': '0',
-            'Win Rate': '0%'
-          },
-          recentMatches: []
+          totalMatches: 0,
+          wins: 0,
+          losses: 0,
+          winRate: 0
         });
         setMatches([]);
       } finally {
@@ -101,6 +120,11 @@ const FaceitStats = () => {
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <Typography variant="h4" gutterBottom sx={{ mb: 3, textAlign: 'center' }}>
         Статистика команды FORZE Reload на FACEIT
+        {stats && (
+          <Typography variant="h6" color="text.secondary" sx={{ mt: 1 }}>
+            Всего матчей: {stats.totalMatches} | Загружено для отображения: {matches.length}
+          </Typography>
+        )}
       </Typography>
 
       {/* Основная статистика */}
@@ -112,7 +136,7 @@ const FaceitStats = () => {
                 Всего матчей
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                {stats?.teamStats['Total Matches'] || '0'}
+                {stats?.totalMatches || '0'}
               </Typography>
             </CardContent>
           </Card>
@@ -125,7 +149,7 @@ const FaceitStats = () => {
                 Победы
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                {stats?.teamStats['Wins'] || '0'}
+                {stats?.wins || '0'}
               </Typography>
             </CardContent>
           </Card>
@@ -138,7 +162,7 @@ const FaceitStats = () => {
                 Поражения
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'error.main' }}>
-                {stats?.teamStats['Losses'] || '0'}
+                {stats?.losses || '0'}
               </Typography>
             </CardContent>
           </Card>
@@ -151,7 +175,7 @@ const FaceitStats = () => {
                 Процент побед
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'info.main' }}>
-                {stats?.teamStats['Win Rate'] || '0%'}
+                {stats?.winRate ? `${stats.winRate}%` : '0%'}
               </Typography>
             </CardContent>
           </Card>
@@ -159,13 +183,13 @@ const FaceitStats = () => {
       </Grid>
 
       {/* Последние матчи */}
-      {stats?.recentMatches && stats.recentMatches.length > 0 && (
+      {matches && matches.length > 0 && (
         <Box sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
-            Последние матчи
+            Последние матчи (показано {matches.length} из {stats?.totalMatches || 0})
           </Typography>
           <Grid container spacing={2}>
-            {stats.recentMatches.map((match, index) => (
+            {matches.slice(0, 6).map((match, index) => (
               <Grid item xs={12} sm={6} md={4} key={index}>
                 <Card elevation={2}>
                   <CardContent>
@@ -174,16 +198,22 @@ const FaceitStats = () => {
                         {match.date}
                       </Typography>
                       <Chip 
-                        label={match.result === 'W' ? 'Победа' : 'Поражение'}
-                        color={match.result === 'W' ? 'success' : 'error'}
+                        label={match.wl === 'W' ? 'Победа' : 'Поражение'}
+                        color={match.wl === 'W' ? 'success' : 'error'}
                         size="small"
                       />
                     </Box>
                     <Typography variant="h6" gutterBottom>
-                      {match.map}
+                      {match.opponent}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      Карта: {match.map}
                     </Typography>
                     <Typography variant="body1" sx={{ mb: 1 }}>
-                      Счет: {match.score}
+                      Счет: {match.result}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {match.event}
                     </Typography>
                   </CardContent>
                 </Card>
