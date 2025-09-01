@@ -1,5 +1,5 @@
 // src/components/MatchTable.jsx
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Box,
   Card,
@@ -20,22 +20,25 @@ import {
   Chip,
   IconButton,
   Tooltip,
-  Pagination
-} from '@mui/material';
+  Pagination,
+} from "@mui/material";
 import {
   ArrowUpward,
   ArrowDownward,
   UnfoldMore,
   CheckCircle,
-  Cancel
-} from '@mui/icons-material';
+  Cancel,
+  Timeline,
+  SportsEsports,
+} from "@mui/icons-material";
 
 const MatchTable = ({ matches }) => {
-  const [sortField, setSortField] = useState('date');
-  const [sortDirection, setSortDirection] = useState('desc');
-  const [filterEvent, setFilterEvent] = useState('');
-  const [filterResult, setFilterResult] = useState('all');
-  const [filterMap, setFilterMap] = useState('');
+  const [sortField, setSortField] = useState("date");
+  const [sortDirection, setSortDirection] = useState("desc");
+  const [filterEvent, setFilterEvent] = useState("");
+  const [filterResult, setFilterResult] = useState("all");
+  const [filterMap, setFilterMap] = useState("");
+  const [filterSource, setFilterSource] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const matchesPerPage = 25;
 
@@ -45,21 +48,26 @@ const MatchTable = ({ matches }) => {
 
     // Фильтрация по турниру
     if (filterEvent) {
-      filtered = filtered.filter(match => 
+      filtered = filtered.filter((match) =>
         match.event.toLowerCase().includes(filterEvent.toLowerCase())
       );
     }
 
     // Фильтрация по результату
-    if (filterResult !== 'all') {
-      filtered = filtered.filter(match => match.wl === filterResult);
+    if (filterResult !== "all") {
+      filtered = filtered.filter((match) => match.wl === filterResult);
     }
 
     // Фильтрация по карте
     if (filterMap) {
-      filtered = filtered.filter(match => 
+      filtered = filtered.filter((match) =>
         match.map.toLowerCase().includes(filterMap.toLowerCase())
       );
+    }
+
+    // Фильтрация по источнику
+    if (filterSource !== "all") {
+      filtered = filtered.filter((match) => match.source === filterSource);
     }
 
     // Сортировка
@@ -67,38 +75,50 @@ const MatchTable = ({ matches }) => {
       let aValue, bValue;
 
       switch (sortField) {
-        case 'date':
-          aValue = new Date(a.date.split('.').reverse().join('-'));
-          bValue = new Date(b.date.split('.').reverse().join('-'));
+        case "date":
+          aValue = new Date(a.date.split(".").reverse().join("-"));
+          bValue = new Date(b.date.split(".").reverse().join("-"));
           break;
-        case 'event':
+        case "event":
           aValue = a.event.toLowerCase();
           bValue = b.event.toLowerCase();
           break;
-        case 'opponent':
+        case "opponent":
           aValue = a.opponent.toLowerCase();
           bValue = b.opponent.toLowerCase();
           break;
-        case 'map':
+        case "map":
           aValue = a.map.toLowerCase();
           bValue = b.map.toLowerCase();
           break;
-        case 'result':
+        case "result":
           aValue = a.result;
           bValue = b.result;
+          break;
+        case "source":
+          aValue = a.source || "Unknown";
+          bValue = b.source || "Unknown";
           break;
         default:
           aValue = a[sortField];
           bValue = b[sortField];
       }
 
-      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
       return 0;
     });
 
     return filtered;
-  }, [matches, sortField, sortDirection, filterEvent, filterResult, filterMap]);
+  }, [
+    matches,
+    sortField,
+    sortDirection,
+    filterEvent,
+    filterResult,
+    filterMap,
+    filterSource,
+  ]);
 
   // Пагинация
   const paginatedMatches = useMemo(() => {
@@ -107,14 +127,16 @@ const MatchTable = ({ matches }) => {
     return sortedAndFilteredMatches.slice(startIndex, endIndex);
   }, [sortedAndFilteredMatches, currentPage]);
 
-  const totalPages = Math.ceil(sortedAndFilteredMatches.length / matchesPerPage);
+  const totalPages = Math.ceil(
+    sortedAndFilteredMatches.length / matchesPerPage
+  );
 
   const handleSort = (field) => {
     if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
-      setSortDirection('asc');
+      setSortDirection("asc");
     }
   };
 
@@ -125,16 +147,51 @@ const MatchTable = ({ matches }) => {
   // Сброс страницы при изменении фильтров
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterEvent, filterResult, filterMap, sortField, sortDirection]);
+  }, [
+    filterEvent,
+    filterResult,
+    filterMap,
+    filterSource,
+    sortField,
+    sortDirection,
+  ]);
 
   const getSortIcon = (field) => {
     if (sortField !== field) return <UnfoldMore />;
-    return sortDirection === 'asc' ? <ArrowUpward /> : <ArrowDownward />;
+    return sortDirection === "asc" ? <ArrowUpward /> : <ArrowDownward />;
+  };
+
+  const getSourceIcon = (source) => {
+    switch (source) {
+      case "HLTV":
+        return <Timeline fontSize="small" />;
+      case "FACEIT":
+        return <SportsEsports fontSize="small" />;
+      default:
+        return null;
+    }
+  };
+
+  const getSourceColor = (source) => {
+    switch (source) {
+      case "HLTV":
+        return "primary";
+      case "FACEIT":
+        return "secondary";
+      default:
+        return "default";
+    }
   };
 
   return (
     <Box sx={{ mt: 4 }}>
-      <Typography variant="h5" component="h2" gutterBottom align="center" sx={{ mb: 3 }}>
+      <Typography
+        variant="h5"
+        component="h2"
+        gutterBottom
+        align="center"
+        sx={{ mb: 3 }}
+      >
         Детальная таблица матчей
       </Typography>
 
@@ -148,7 +205,7 @@ const MatchTable = ({ matches }) => {
               onChange={(e) => setFilterEvent(e.target.value)}
               placeholder="Введите название турнира..."
               size="small"
-              sx={{ minWidth: 250 }}
+              sx={{ minWidth: 200 }}
             />
             <TextField
               label="Поиск по карте"
@@ -156,9 +213,9 @@ const MatchTable = ({ matches }) => {
               onChange={(e) => setFilterMap(e.target.value)}
               placeholder="Введите название карты..."
               size="small"
-              sx={{ minWidth: 200 }}
+              sx={{ minWidth: 150 }}
             />
-            <FormControl size="small" sx={{ minWidth: 150 }}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
               <InputLabel>Результат</InputLabel>
               <Select
                 value={filterResult}
@@ -170,10 +227,22 @@ const MatchTable = ({ matches }) => {
                 <MenuItem value="L">Поражения</MenuItem>
               </Select>
             </FormControl>
-            <Chip 
-              label={`Показано: ${paginatedMatches.length} из ${sortedAndFilteredMatches.length} (всего: ${matches.length})`} 
-              color="primary" 
-              variant="outlined" 
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Источник</InputLabel>
+              <Select
+                value={filterSource}
+                label="Источник"
+                onChange={(e) => setFilterSource(e.target.value)}
+              >
+                <MenuItem value="all">Все</MenuItem>
+                <MenuItem value="HLTV">HLTV</MenuItem>
+                <MenuItem value="FACEIT">FACEIT</MenuItem>
+              </Select>
+            </FormControl>
+            <Chip
+              label={`Показано: ${paginatedMatches.length} из ${sortedAndFilteredMatches.length} (всего: ${matches.length})`}
+              color="primary"
+              variant="outlined"
             />
           </Box>
         </CardContent>
@@ -183,11 +252,11 @@ const MatchTable = ({ matches }) => {
       <TableContainer component={Paper} elevation={2}>
         <Table>
           <TableHead>
-            <TableRow sx={{ backgroundColor: 'grey.50' }}>
+            <TableRow sx={{ backgroundColor: "grey.50" }}>
               <TableCell>
                 <Tooltip title="Сортировать по дате">
-                  <IconButton size="small" onClick={() => handleSort('date')}>
-                    {getSortIcon('date')}
+                  <IconButton size="small" onClick={() => handleSort("date")}>
+                    {getSortIcon("date")}
                   </IconButton>
                 </Tooltip>
                 <Typography variant="subtitle2" component="span">
@@ -196,8 +265,8 @@ const MatchTable = ({ matches }) => {
               </TableCell>
               <TableCell>
                 <Tooltip title="Сортировать по турниру">
-                  <IconButton size="small" onClick={() => handleSort('event')}>
-                    {getSortIcon('event')}
+                  <IconButton size="small" onClick={() => handleSort("event")}>
+                    {getSortIcon("event")}
                   </IconButton>
                 </Tooltip>
                 <Typography variant="subtitle2" component="span">
@@ -206,8 +275,11 @@ const MatchTable = ({ matches }) => {
               </TableCell>
               <TableCell>
                 <Tooltip title="Сортировать по противнику">
-                  <IconButton size="small" onClick={() => handleSort('opponent')}>
-                    {getSortIcon('opponent')}
+                  <IconButton
+                    size="small"
+                    onClick={() => handleSort("opponent")}
+                  >
+                    {getSortIcon("opponent")}
                   </IconButton>
                 </Tooltip>
                 <Typography variant="subtitle2" component="span">
@@ -216,8 +288,8 @@ const MatchTable = ({ matches }) => {
               </TableCell>
               <TableCell>
                 <Tooltip title="Сортировать по карте">
-                  <IconButton size="small" onClick={() => handleSort('map')}>
-                    {getSortIcon('map')}
+                  <IconButton size="small" onClick={() => handleSort("map")}>
+                    {getSortIcon("map")}
                   </IconButton>
                 </Tooltip>
                 <Typography variant="subtitle2" component="span">
@@ -226,8 +298,8 @@ const MatchTable = ({ matches }) => {
               </TableCell>
               <TableCell align="center">
                 <Tooltip title="Сортировать по счёту">
-                  <IconButton size="small" onClick={() => handleSort('result')}>
-                    {getSortIcon('result')}
+                  <IconButton size="small" onClick={() => handleSort("result")}>
+                    {getSortIcon("result")}
                   </IconButton>
                 </Tooltip>
                 <Typography variant="subtitle2" component="span">
@@ -235,25 +307,31 @@ const MatchTable = ({ matches }) => {
                 </Typography>
               </TableCell>
               <TableCell align="center">
-                <Typography variant="subtitle2">
-                  Результат
+                <Typography variant="subtitle2">Результат</Typography>
+              </TableCell>
+              <TableCell align="center">
+                <Tooltip title="Сортировать по источнику">
+                  <IconButton size="small" onClick={() => handleSort("source")}>
+                    {getSortIcon("source")}
+                  </IconButton>
+                </Tooltip>
+                <Typography variant="subtitle2" component="span">
+                  Источник
                 </Typography>
               </TableCell>
             </TableRow>
           </TableHead>
-                     <TableBody>
-             {paginatedMatches.map((match, index) => (
-              <TableRow 
+          <TableBody>
+            {paginatedMatches.map((match, index) => (
+              <TableRow
                 key={index}
-                sx={{ 
-                  '&:nth-of-type(odd)': { backgroundColor: 'grey.50' },
-                  '&:hover': { backgroundColor: 'grey.100' }
+                sx={{
+                  "&:nth-of-type(odd)": { backgroundColor: "grey.50" },
+                  "&:hover": { backgroundColor: "grey.100" },
                 }}
               >
                 <TableCell>
-                  <Typography variant="body2">
-                    {match.date}
-                  </Typography>
+                  <Typography variant="body2">{match.date}</Typography>
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
@@ -276,7 +354,7 @@ const MatchTable = ({ matches }) => {
                   </Typography>
                 </TableCell>
                 <TableCell align="center">
-                  {match.wl === 'W' ? (
+                  {match.wl === "W" ? (
                     <Chip
                       icon={<CheckCircle />}
                       label="Победа"
@@ -292,36 +370,45 @@ const MatchTable = ({ matches }) => {
                     />
                   )}
                 </TableCell>
+                <TableCell align="center">
+                  <Chip
+                    icon={getSourceIcon(match.source)}
+                    label={match.source || "Unknown"}
+                    color={getSourceColor(match.source)}
+                    size="small"
+                    variant="outlined"
+                  />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
-                 </Table>
-       </TableContainer>
+        </Table>
+      </TableContainer>
 
-       {/* Пагинация */}
-       {totalPages > 1 && (
-         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-           <Pagination
-             count={totalPages}
-             page={currentPage}
-             onChange={handlePageChange}
-             color="primary"
-             size="large"
-             showFirstButton
-             showLastButton
-           />
-         </Box>
-       )}
+      {/* Пагинация */}
+      {totalPages > 1 && (
+        <Box sx={{ mt: 3, display: "flex", justifyContent: "center" }}>
+          <Pagination
+            count={totalPages}
+            page={currentPage}
+            onChange={handlePageChange}
+            color="primary"
+            size="large"
+            showFirstButton
+            showLastButton
+          />
+        </Box>
+      )}
 
-       {/* Сообщение если нет данных */}
-       {sortedAndFilteredMatches.length === 0 && (
-        <Box 
-          sx={{ 
-            mt: 2, 
-            p: 3, 
-            textAlign: 'center',
-            backgroundColor: 'grey.50',
-            borderRadius: 1
+      {/* Сообщение если нет данных */}
+      {sortedAndFilteredMatches.length === 0 && (
+        <Box
+          sx={{
+            mt: 2,
+            p: 3,
+            textAlign: "center",
+            backgroundColor: "grey.50",
+            borderRadius: 1,
           }}
         >
           <Typography variant="body1" color="text.secondary">

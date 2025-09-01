@@ -37,7 +37,7 @@ const FaceitStats = () => {
         console.log('FACEIT combined received:', combined);
 
         const statsData = combined.stats;
-        const rawMatches = combined.matches || [];
+        const rawMatches = combined.matches?.matches || [];
 
         // Трансформируем матчи в формат, совместимый с графиками/таблицей
         const transformedMatches = rawMatches.map((match) => {
