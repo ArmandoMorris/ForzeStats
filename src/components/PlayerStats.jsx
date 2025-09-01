@@ -111,11 +111,14 @@ const PlayerStats = () => {
       if (numRating >= 1.0) return "warning";
       return "error";
     } else {
-      // FACEIT рейтинг (1-10)
-      if (numRating >= 8) return "success";
-      if (numRating >= 6) return "primary";
-      if (numRating >= 4) return "warning";
-      return "error";
+      // FACEIT ELO рейтинг для профессиональных игроков
+      if (numRating >= 4000) return "success"; // Легендарный уровень
+      if (numRating >= 3500) return "primary"; // Профессиональный уровень
+      if (numRating >= 3000) return "secondary"; // Высокий профессиональный
+      if (numRating >= 2500) return "info"; // Продвинутый уровень
+      if (numRating >= 2000) return "warning"; // Хороший уровень
+      if (numRating >= 1500) return "default"; // Средний уровень
+      return "error"; // Низкий уровень
     }
   };
 
@@ -194,19 +197,25 @@ const PlayerStats = () => {
               <TableCell align="center">
                 <Typography variant="subtitle2">Статус</Typography>
               </TableCell>
-              <TableCell align="center">
-                <Typography variant="subtitle2">
-                  Рейтинг {source === "HLTV" ? "(30 дней)" : "(Уровень)"}
-                </Typography>
-              </TableCell>
-              <TableCell align="center">
-                <Typography variant="subtitle2">Карты</Typography>
-              </TableCell>
+                                      <TableCell align="center">
+                          <Typography variant="subtitle2">
+                            {source === "HLTV" ? "Рейтинг (30 дней)" : "ELO Рейтинг (Про)"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Typography variant="subtitle2">Карты</Typography>
+                        </TableCell>
+
               <TableCell align="center">
                 <Typography variant="subtitle2">K/D</Typography>
               </TableCell>
+              {source === "FACEIT" && (
+                <TableCell align="center">
+                  <Typography variant="subtitle2">Win Rate</Typography>
+                </TableCell>
+              )}
               <TableCell align="center">
-                <Typography variant="subtitle2">Действия</Typography>
+                <Typography variant="subtitle2">Профиль</Typography>
               </TableCell>
             </TableRow>
           </TableHead>
@@ -224,7 +233,7 @@ const PlayerStats = () => {
                     sx={{ display: "flex", alignItems: "center", gap: 2 }}
                   >
                     <Avatar sx={{ bgcolor: getSourceColor(source) }}>
-                      <Person />
+                      {player.nickname ? player.nickname.charAt(0).toUpperCase() : "?"}
                     </Avatar>
                     <Typography variant="body1" sx={{ fontWeight: 500 }}>
                       {player.nickname}
@@ -252,33 +261,30 @@ const PlayerStats = () => {
                     {player.stats?.maps || "0"}
                   </Typography>
                 </TableCell>
+
                 <TableCell align="center">
                   <Typography variant="body2">
                     {player.stats?.kd || "0.00"}
                   </Typography>
                 </TableCell>
+                {source === "FACEIT" && (
+                  <TableCell align="center">
+                    <Typography variant="body2">
+                      {player.stats?.winRate || "0.0"}%
+                    </Typography>
+                  </TableCell>
+                )}
                 <TableCell align="center">
-                  <Box sx={{ display: "flex", gap: 1 }}>
-                    {player.profileUrl && (
-                      <Tooltip title="Открыть профиль">
-                        <IconButton
-                          size="small"
-                          onClick={() => window.open(player.profileUrl, "_blank")}
-                        >
-                          <OpenInNew />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={() => {
-                        console.log("Player details:", player);
-                      }}
-                    >
-                      Детали
-                    </Button>
-                  </Box>
+                  {player.profileUrl && (
+                    <Tooltip title="Открыть профиль">
+                      <IconButton
+                        size="small"
+                        onClick={() => window.open(player.profileUrl, "_blank")}
+                      >
+                        <OpenInNew />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -401,7 +407,7 @@ const PlayerStats = () => {
                 sx={{ mb: 2, display: "flex", alignItems: "center" }}
               >
                 <Timeline sx={{ mr: 1 }} />
-                Статистика игроков HLTV
+                Статистика игроков команды FORZE Reload (HLTV)
               </Typography>
               {renderPlayerTable(hltvPlayers, "HLTV", hltvLoading, hltvError)}
             </CardContent>
@@ -420,7 +426,7 @@ const PlayerStats = () => {
                 sx={{ mb: 2, display: "flex", alignItems: "center" }}
               >
                 <SportsEsports sx={{ mr: 1 }} />
-                Статистика игроков FACEIT
+                Статистика игроков команды FORZE Reload (FACEIT)
               </Typography>
               {renderPlayerTable(faceitPlayers, "FACEIT", faceitLoading, faceitError)}
             </CardContent>

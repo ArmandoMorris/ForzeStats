@@ -302,51 +302,46 @@ function parseHltvPlayers(html) {
   const $ = cheerio.load(html);
   const players = [];
 
-  // Ищем секцию с игроками (rosterBox)
-  const rosterSection = $('[id="rosterBox"]');
-  if (rosterSection.length === 0) {
-    console.log("❌ Не найдена секция rosterBox");
+  // Ищем таблицу игроков
+  const playersTable = $('table.table-container.players-table');
+  if (playersTable.length === 0) {
+    console.log("❌ Не найдена таблица игроков");
     return [];
   }
 
-  console.log("✅ Найдена секция rosterBox");
+  console.log("✅ Найдена таблица игроков");
 
-  // Ищем карточки игроков
-  const playerCards = rosterSection.find('.rosterPlayer');
-  console.log(`👥 Найдено карточек игроков: ${playerCards.length}`);
+  // Получаем строки таблицы (пропускаем заголовок)
+  const rows = playersTable.find('tr').slice(1);
+  console.log(`👥 Найдено строк игроков: ${rows.length}`);
 
-  playerCards.each((index, card) => {
-    const $card = $(card);
+  rows.each((index, row) => {
+    const $row = $(row);
+    const cells = $row.find('td');
     
-    // Извлекаем никнейм
-    const nickname = $card.find('.rosterPlayerName').text().trim();
-    
-    // Извлекаем статус (STARTER/BENCHED)
-    const statusElement = $card.find('.rosterPlayerStatus');
-    const status = statusElement.text().trim().toUpperCase();
-    
-    // Извлекаем рейтинг за 30 дней
-    const ratingElement = $card.find('.rosterPlayerRating');
-    const rating30 = ratingElement.text().trim() || "0.00";
+    if (cells.length < 5) {
+      console.log(`⚠️ Строка ${index + 1} пропущена: недостаточно колонок (${cells.length})`);
+      return;
+    }
+
+    // Извлекаем данные по колонкам:
+    // 0 - никнейм, 1 - статус, 2 - время в команде, 3 - карты, 4 - рейтинг
+    const nickname = $(cells[0]).text().trim();
+    const status = $(cells[1]).text().trim().toUpperCase();
+    const timeInTeam = $(cells[2]).text().trim();
+    const maps = $(cells[3]).text().trim();
+    const rating30 = $(cells[4]).text().trim();
     
     // Извлекаем ссылку на профиль игрока
-    const profileLink = $card.find('a').attr('href');
+    const profileLink = $row.find('a[href*="/player/"]').attr('href');
     const playerId = profileLink ? profileLink.split('/')[2] : `player_${index}`;
-    
-    // Извлекаем статистику
-    const statsElement = $card.find('.rosterPlayerStats');
-    const stats = {
-      rating30: rating30,
-      maps: $card.find('.rosterPlayerMaps').text().trim() || "0",
-      kd: $card.find('.rosterPlayerKD').text().trim() || "0.00",
-      kills: $card.find('.rosterPlayerKills').text().trim() || "0",
-      deaths: $card.find('.rosterPlayerDeaths').text().trim() || "0",
-    };
 
     console.log(`Игрок ${index + 1}:`);
     console.log(`  Никнейм: "${nickname}"`);
     console.log(`  Статус: "${status}"`);
-    console.log(`  Рейтинг 30д: "${rating30}"`);
+    console.log(`  Время в команде: "${timeInTeam}"`);
+    console.log(`  Карты: "${maps}"`);
+    console.log(`  Рейтинг: "${rating30}"`);
     console.log(`  ID: "${playerId}"`);
 
     players.push({
@@ -354,7 +349,14 @@ function parseHltvPlayers(html) {
       nickname: nickname,
       status: status,
       rating30: rating30,
-      stats: stats,
+      stats: {
+        rating30: rating30,
+        maps: maps,
+        kd: "0.00", // HLTV не показывает K/D в таблице игроков
+        kills: "0",
+        deaths: "0",
+        timeInTeam: timeInTeam,
+      },
       profileUrl: profileLink ? `https://www.hltv.org${profileLink}` : null,
     });
   });
@@ -395,7 +397,23 @@ app.get("/api/forze/players", async (req, res) => {
     const html = await fetchHtml(url);
     const players = parseHltvPlayers(html);
 
-    const result = {
+    // Если парсинг не удался, возвращаем пустой массив
+    if (players.length === 0) {
+      console.log("⚠️ HLTV парсинг не удался, возвращаем пустой массив");
+      const emptyData = {
+        source: "HLTV",
+        players: [],
+        total: 0,
+        starters: 0,
+        benched: 0,
+        averageRating: "0.00",
+        lastUpdated: new Date().toISOString(),
+      };
+      setCache("hltv", "players", emptyData);
+      return res.json(emptyData);
+    }
+
+      const result = {
       source: "HLTV",
       players: players,
       total: players.length,
@@ -511,30 +529,94 @@ app.get("/api/faceit/players", async (req, res) => {
     }
 
     const faceitAPI = new FaceitAPI();
-    const teamData = await faceitAPI.getTeamData();
-    const players = teamData.teamInfo?.players || [];
+    const teamInfo = await faceitAPI.getTeamInfo();
+    const players = teamInfo.members || [];
+
+    // Если FACEIT API не вернул игроков, возвращаем пустой массив
+    if (players.length === 0) {
+      console.log("⚠️ FACEIT API не вернул игроков, возвращаем пустой массив");
+      const emptyData = {
+        source: "FACEIT",
+        players: [],
+        total: 0,
+        starters: 0,
+        benched: 0,
+        averageRating: "0",
+        lastUpdated: new Date().toISOString(),
+      };
+      setCache("faceit", "players", emptyData);
+      return res.json(emptyData);
+    }
+
+    // Получаем статистику для каждого игрока
+    console.log(`📊 Получаем статистику для ${players.length} игроков FACEIT...`);
+    const playersWithStats = await Promise.all(
+      players.map(async (player) => {
+        try {
+          console.log(`🔍 Получаем статистику для игрока ${player.nickname} (${player.user_id})...`);
+          const playerStats = await faceitAPI.getPlayerStats(player.user_id);
+          
+          console.log(`✅ Статистика игрока ${player.nickname}:`, {
+            skillLevel: playerStats.skillLevel,
+            totalMatches: playerStats.totalMatches,
+            winRate: playerStats.winRate,
+            averageKDRatio: playerStats.averageKDRatio,
+            totalKills: playerStats.totalKills,
+            totalDeaths: playerStats.totalDeaths
+          });
+          
+          return {
+            id: player.user_id,
+            nickname: player.nickname,
+            status: "STARTER", // FACEIT не различает STARTER/BENCHED
+            rating30: playerStats.eloRating.toString(),
+            stats: {
+              rating30: playerStats.eloRating.toString(),
+              maps: playerStats.totalMatches.toString(),
+              kd: playerStats.averageKDRatio.toFixed(2),
+              kills: playerStats.totalKills.toString(),
+              deaths: playerStats.totalDeaths.toString(),
+              assists: playerStats.totalAssists.toString(),
+              winRate: playerStats.winRate.toFixed(1),
+              mvps: playerStats.mvps.toString(),
+              headshots: playerStats.headshots.toString(),
+              headshotPercentage: playerStats.headshotPercentage.toFixed(1),
+            },
+            profileUrl: `https://www.faceit.com/en/players/${player.nickname}`,
+          };
+        } catch (error) {
+          console.error(`❌ Ошибка получения статистики игрока ${player.nickname}:`, error.message);
+          return {
+            id: player.user_id,
+            nickname: player.nickname,
+            status: "STARTER",
+            rating30: "1000",
+            stats: {
+              rating30: "1000",
+              maps: "0",
+              kd: "0.00",
+              kills: "0",
+              deaths: "0",
+              assists: "0",
+              winRate: "0.0",
+              mvps: "0",
+              headshots: "0",
+              headshotPercentage: "0.0",
+            },
+            profileUrl: `https://www.faceit.com/en/players/${player.nickname}`,
+          };
+        }
+      })
+    );
 
     const result = {
       source: "FACEIT",
-      players: players.map(player => ({
-        id: player.player_id,
-        nickname: player.nickname,
-        status: "STARTER", // FACEIT не различает STARTER/BENCHED
-        rating30: player.games?.cs2?.skill_level || "0",
-        stats: {
-          rating30: player.games?.cs2?.skill_level || "0",
-          maps: player.games?.cs2?.game_count || "0",
-          kd: "0.00", // FACEIT не предоставляет K/D
-          kills: "0",
-          deaths: "0",
-        },
-        profileUrl: `https://www.faceit.com/en/players/${player.nickname}`,
-      })),
-      total: players.length,
-      starters: players.length,
+      players: playersWithStats,
+      total: playersWithStats.length,
+      starters: playersWithStats.length,
       benched: 0,
-      averageRating: players.length > 0 
-        ? (players.reduce((sum, p) => sum + parseInt(p.games?.cs2?.skill_level || 0), 0) / players.length).toFixed(0)
+      averageRating: playersWithStats.length > 0 
+        ? (playersWithStats.reduce((sum, p) => sum + parseInt(p.rating30 || 0), 0) / playersWithStats.length).toFixed(0)
         : "0",
       lastUpdated: new Date().toISOString(),
     };

@@ -112,6 +112,134 @@ class FaceitAPI {
     }
   }
 
+  // Получение информации о игроке (включая ELO)
+  async getPlayerInfo(playerId) {
+    try {
+      console.log(`👤 Получаем информацию о игроке ${playerId}...`);
+      const data = await this.makeRequest(`/players/${playerId}`);
+      
+      // Получаем ELO рейтинг для CS2
+      const cs2Game = data.games?.cs2;
+      const faceitElo = cs2Game?.faceit_elo || 1000;
+      
+      return {
+        nickname: data.nickname,
+        country: data.country,
+        faceitElo: faceitElo,
+        skillLevel: cs2Game?.skill_level || 0
+      };
+    } catch (error) {
+      console.error(`❌ Ошибка получения информации о игроке ${playerId}:`, error.message);
+      return {
+        nickname: "Unknown",
+        country: "Unknown",
+        faceitElo: 1000,
+        skillLevel: 0
+      };
+    }
+  }
+
+  // Получение статистики игрока
+  async getPlayerStats(playerId) {
+    try {
+      console.log(`👤 Получаем статистику игрока ${playerId}...`);
+      const data = await this.makeRequest(`/players/${playerId}/stats/cs2`);
+      
+      const lifetime = data.lifetime || {};
+      
+      // Вычисляем skill level из segments (берем самый высокий уровень)
+      let skillLevel = 0;
+      if (data.segments && data.segments.length > 0) {
+        // Ищем уровень в сегментах карт
+        const mapSegments = data.segments.filter(seg => seg.type === 'Map');
+        if (mapSegments.length > 0) {
+          // Берем средний уровень по картам или максимальный
+          const levels = mapSegments.map(seg => parseInt(seg.stats?.['Skill Level'] || 0)).filter(l => l > 0);
+          if (levels.length > 0) {
+            skillLevel = Math.max(...levels);
+          }
+        }
+      }
+      
+      // Если не нашли в сегментах, ищем в lifetime
+      if (skillLevel === 0) {
+        skillLevel = parseInt(lifetime['Skill Level'] || 0);
+      }
+      
+      // Если все еще нет skill level, вычисляем примерный уровень на основе статистики
+      if (skillLevel === 0) {
+        const winRate = parseFloat(lifetime['Win Rate %'] || 0);
+        const avgKDRatio = parseFloat(lifetime['Average K/D Ratio'] || 0);
+        const totalMatches = parseInt(lifetime['Matches'] || 0);
+        
+        // Простая формула для оценки уровня
+        if (totalMatches > 0) {
+          const baseLevel = Math.floor((winRate / 10) + (avgKDRatio * 2));
+          skillLevel = Math.max(1, Math.min(10, baseLevel));
+        }
+      }
+      
+      // Вычисляем ELO-подобный рейтинг на основе статистики
+      const winRate = parseFloat(lifetime['Win Rate %'] || 0);
+      const avgKDRatio = parseFloat(lifetime['Average K/D Ratio'] || 0);
+      const totalMatches = parseInt(lifetime['Matches'] || 0);
+      
+      // Формула для ELO-подобного рейтинга
+      let eloRating = 1000; // Базовый рейтинг
+      if (totalMatches > 0) {
+        // Учитываем win rate и K/D ratio
+        const winRateBonus = (winRate - 50) * 10; // Бонус за win rate выше 50%
+        const kdBonus = (avgKDRatio - 1.0) * 200; // Бонус за K/D выше 1.0
+        eloRating = Math.max(500, Math.min(2000, 1000 + winRateBonus + kdBonus));
+      }
+      
+      // Вычисляем total deaths из K/D ratio
+      const totalKills = parseInt(lifetime['Total Kills with extended stats'] || 0);
+      const totalDeaths = avgKDRatio > 0 ? Math.round(totalKills / avgKDRatio) : 0;
+      
+      // Получаем информацию о игроке для настоящего ELO
+      const playerInfo = await this.getPlayerInfo(playerId);
+      
+      return {
+        skillLevel: skillLevel,
+        eloRating: playerInfo.faceitElo, // Настоящий ELO рейтинг
+        totalMatches: parseInt(lifetime['Matches'] || 0),
+        wins: parseInt(lifetime['Wins'] || 0),
+        losses: parseInt(lifetime['Matches'] || 0) - parseInt(lifetime['Wins'] || 0),
+        winRate: parseFloat(lifetime['Win Rate %'] || 0),
+        averageKDRatio: avgKDRatio,
+        totalKills: totalKills,
+        totalDeaths: totalDeaths,
+        totalAssists: parseInt(lifetime['Total Assists'] || 0),
+        averageKills: parseFloat(lifetime['Average Kills'] || 0),
+        averageDeaths: parseFloat(lifetime['Average Deaths'] || 0),
+        averageAssists: parseFloat(lifetime['Average Assists'] || 0),
+        mvps: parseInt(lifetime['MVPs'] || 0),
+        headshots: parseInt(lifetime['Headshots'] || 0),
+        headshotPercentage: parseFloat(lifetime['Headshots %'] || 0)
+      };
+    } catch (error) {
+      console.error(`❌ Ошибка получения статистики игрока ${playerId}:`, error.message);
+      return {
+        skillLevel: 0,
+        totalMatches: 0,
+        wins: 0,
+        losses: 0,
+        winRate: 0,
+        averageKDRatio: 0,
+        totalKills: 0,
+        totalDeaths: 0,
+        totalAssists: 0,
+        averageKills: 0,
+        averageDeaths: 0,
+        averageAssists: 0,
+        mvps: 0,
+        headshots: 0,
+        headshotPercentage: 0
+      };
+    }
+  }
+
   // Получение матчей команды через историю игрока с фильтрацией
   async getTeamMatches(offset = 0, limit = 100) {
     try {

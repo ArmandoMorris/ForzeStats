@@ -37,7 +37,7 @@ const MatchTable = ({ matches }) => {
   const [sortDirection, setSortDirection] = useState("desc");
   const [filterEvent, setFilterEvent] = useState("");
   const [filterResult, setFilterResult] = useState("all");
-  const [filterMap, setFilterMap] = useState("");
+
   const [filterSource, setFilterSource] = useState("all");
      const [currentPage, setCurrentPage] = useState(1);
    const matchesPerPage = 25;
@@ -58,12 +58,7 @@ const MatchTable = ({ matches }) => {
       filtered = filtered.filter((match) => match.wl === filterResult);
     }
 
-    // Фильтрация по карте
-    if (filterMap) {
-      filtered = filtered.filter((match) =>
-        match.map.toLowerCase().includes(filterMap.toLowerCase())
-      );
-    }
+
 
     // Фильтрация по источнику
     if (filterSource !== "all") {
@@ -87,10 +82,7 @@ const MatchTable = ({ matches }) => {
           aValue = a.opponent.toLowerCase();
           bValue = b.opponent.toLowerCase();
           break;
-        case "map":
-          aValue = a.map.toLowerCase();
-          bValue = b.map.toLowerCase();
-          break;
+
         case "result":
           aValue = a.result;
           bValue = b.result;
@@ -114,7 +106,6 @@ const MatchTable = ({ matches }) => {
     sortDirection,
     filterEvent,
     filterResult,
-    filterMap,
     filterSource,
   ]);
 
@@ -173,7 +164,6 @@ const MatchTable = ({ matches }) => {
 
   // Получение уникальных значений для фильтров
   const uniqueEvents = [...new Set(matches.map((match) => match.event))];
-  const uniqueMaps = [...new Set(matches.map((match) => match.map))];
   const uniqueSources = [...new Set(matches.map((match) => match.source))];
 
   return (
@@ -209,12 +199,7 @@ const MatchTable = ({ matches }) => {
                 <MenuItem value="L">Поражения</MenuItem>
               </Select>
             </FormControl>
-            <TextField
-              label="Поиск по карте"
-              value={filterMap}
-              onChange={(e) => setFilterMap(e.target.value)}
-              size="small"
-            />
+
             <FormControl size="small">
               <InputLabel>Источник</InputLabel>
               <Select
@@ -277,16 +262,7 @@ const MatchTable = ({ matches }) => {
                   Противник
                 </Typography>
               </TableCell>
-              <TableCell>
-                <Tooltip title="Сортировать по карте">
-                  <IconButton size="small" onClick={() => handleSort("map")}>
-                    {getSortIcon("map")}
-                  </IconButton>
-                </Tooltip>
-                <Typography variant="subtitle2" component="span">
-                  Карта
-                </Typography>
-              </TableCell>
+
               <TableCell align="center">
                 <Tooltip title="Сортировать по результату">
                   <IconButton size="small" onClick={() => handleSort("result")}>
@@ -331,9 +307,7 @@ const MatchTable = ({ matches }) => {
                         {match.opponent}
                       </Typography>
                     </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">{match.map}</Typography>
-                    </TableCell>
+
                     <TableCell align="center">
                       <Typography variant="body2" fontWeight="bold">
                         {match.result}

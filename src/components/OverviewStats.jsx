@@ -14,12 +14,8 @@ import {
 } from "@mui/material";
 import {
   EmojiEvents,
-  Timeline,
-  TableChart,
   Refresh,
 } from "@mui/icons-material";
-import MaterialChart from "./MaterialChart";
-import MatchTable from "./MatchTable";
 
 const OverviewStats = () => {
   const [overview, setOverview] = useState(null);
@@ -27,7 +23,6 @@ const OverviewStats = () => {
   const [faceitStats, setFaceitStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showTable, setShowTable] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -96,15 +91,7 @@ const OverviewStats = () => {
     );
   }
 
-  // Объединяем все матчи для отображения
-  const allMatches = [
-    ...(hltvMatches || []),
-    ...(faceitStats?.matches?.matches || []),
-  ].map((match, index) => ({
-    ...match,
-    id: match.id || `match_${index}`,
-    source: match.source || "Unknown",
-  }));
+
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -114,7 +101,7 @@ const OverviewStats = () => {
       </Typography>
 
       {/* Основная статистика */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      <Grid container justifyContent={"center"} spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={3}>
           <Card elevation={3}>
             <CardContent sx={{ textAlign: "center" }}>
@@ -178,7 +165,7 @@ const OverviewStats = () => {
       </Grid>
 
       {/* Статистика по платформам */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      <Grid container justifyContent={"center"} spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={6}>
           <Card elevation={2}>
             <CardContent>
@@ -264,20 +251,7 @@ const OverviewStats = () => {
         </Grid>
       </Grid>
 
-      {/* Графики */}
-      {allMatches.length > 0 && (
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
-            Графики статистики (все матчи)
-          </Typography>
-          <MaterialChart
-            matches={allMatches}
-            showTitle={false}
-            showStats={false}
-            showChips={false}
-          />
-        </Box>
-      )}
+
 
       {/* Информация о платформах */}
       <Paper elevation={1} sx={{ p: 3, textAlign: "center" }}>
