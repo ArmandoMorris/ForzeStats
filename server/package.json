@@ -1,15 +1,20 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "FORZE Stats Backend API",
+  "main": "server.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "type": "module",
     "dev": "nodemon server.js"
   },
-  "keywords": [],
+  "keywords": [
+    "forze",
+    "cs2",
+    "stats",
+    "api"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -19,7 +24,7 @@
     "express": "^5.1.0",
     "fetch-cookie": "^3.1.0",
     "hltv": "^3.5.0",
-    "node-fetch": "^2.7.0",
+    "node-fetch": "^3.3.2",
     "puppeteer": "^24.17.1",
     "tough-cookie": "^6.0.0"
   },
