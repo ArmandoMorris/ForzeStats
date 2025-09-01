@@ -426,19 +426,19 @@ app.get("/api/faceit/combined", async (req, res) => {
     const faceitAPI = new FaceitAPI();
     const [stats, matches] = await Promise.all([
       faceitAPI.getTeamStats(),
-      faceitAPI.getAllMatches()
+      faceitAPI.getAllMatches(),
     ]);
-    
+
     const combined = {
       source: "FACEIT",
       stats,
       matches: {
         matches: matches,
         total: matches.length,
-        wins: matches.filter(m => m.i17 === '1').length,
-        losses: matches.filter(m => m.i17 === '0').length
+        wins: matches.filter((m) => m.i17 === "1").length,
+        losses: matches.filter((m) => m.i17 === "0").length,
       },
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
     };
 
     res.json(combined);
