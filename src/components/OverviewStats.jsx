@@ -279,30 +279,6 @@ const OverviewStats = () => {
         </Box>
       )}
 
-      {/* Кнопка показать/скрыть таблицу */}
-      <Box sx={{ textAlign: "center", mb: 3 }}>
-        <Button
-          variant="contained"
-          onClick={() => setShowTable(!showTable)}
-          startIcon={showTable ? <Timeline /> : <TableChart />}
-          size="large"
-        >
-          {showTable
-            ? "Скрыть таблицу всех матчей"
-            : "Показать таблицу всех матчей"}
-        </Button>
-      </Box>
-
-      {/* Таблица всех матчей */}
-      {showTable && allMatches.length > 0 && (
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h5" gutterBottom sx={{ mb: 2 }}>
-            Все матчи (HLTV + FACEIT)
-          </Typography>
-          <MatchTable matches={allMatches} />
-        </Box>
-      )}
-
       {/* Информация о платформах */}
       <Paper elevation={1} sx={{ p: 3, textAlign: "center" }}>
         <Typography variant="h6" gutterBottom>

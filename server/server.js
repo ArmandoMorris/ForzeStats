@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import * as cheerio from "cheerio";
+import puppeteer from "puppeteer";
 import nodeFetch from "node-fetch";
 import fetchCookie from "fetch-cookie";
 import { CookieJar } from "tough-cookie";
@@ -80,17 +81,106 @@ const HEADERS = {
   referer: "https://www.hltv.org/",
 };
 
+// Массив User-Agent для ротации
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+];
+
+// Функция для получения случайного User-Agent
+function getRandomUserAgent() {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
 async function fetchHtml(url) {
-  await fetchWithCookies("https://www.hltv.org/", {
-    redirect: "follow",
-    headers: HEADERS,
-  });
-  const r = await fetchWithCookies(url, {
-    redirect: "follow",
-    headers: HEADERS,
-  });
-  if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
-  return await r.text();
+  console.log(`Запрос к HLTV: ${url}`);
+  
+  let browser;
+  try {
+    // Получаем случайный User-Agent
+    const userAgent = getRandomUserAgent();
+    
+    // Запускаем браузер с простыми настройками
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-web-security',
+        '--disable-dev-shm-usage',
+        '--no-first-run',
+        '--disable-gpu',
+        '--window-size=1920,1080',
+        `--user-agent=${userAgent}`
+      ],
+    });
+
+    const page = await browser.newPage();
+    
+    // Устанавливаем User-Agent
+    await page.setUserAgent(userAgent);
+    
+    // Устанавливаем дополнительные заголовки
+    await page.setExtraHTTPHeaders({
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+      'Accept-Language': 'en-US,en;q=0.9,ru;q=0.8',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+      'Sec-Ch-Ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"Windows"',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1',
+      'Referer': 'https://www.hltv.org/'
+    });
+
+    // Эмуляция человеческого поведения
+    await page.evaluateOnNewDocument(() => {
+      // Убираем признаки автоматизации
+      delete navigator.__proto__.webdriver;
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+    });
+
+    // Небольшая задержка перед запросом
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+
+    // Переходим на страницу
+    const response = await page.goto(url, { 
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
+
+    if (!response.ok()) {
+      throw new Error(`HTTP ${response.status()} ${response.statusText()}`);
+    }
+
+    // Ждем немного для полной загрузки
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Получаем HTML
+    const html = await page.content();
+    console.log(`Получен HTML длиной ${html.length} символов`);
+    
+    return html;
+
+  } catch (error) {
+    console.error(`Ошибка при получении данных с HLTV:`, error.message);
+    throw error;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
 }
 
 function toISOfromDDMMYY(d) {
@@ -105,74 +195,102 @@ function parseStatsMatches(html) {
   const $ = cheerio.load(html);
   const rows = [];
 
-  // список карт для распознавания текста
-  const MAP_RX =
-    /(Ancient|Anubis|Dust ?2|Inferno|Mirage|Nuke|Overpass|Train|Vertigo|Tuscan|Cache|Cobblestone|Season)/i;
+  console.log("🔍 Начинаем парсинг HLTV матчей");
+  console.log(`📄 Размер HTML: ${html.length} символов`);
 
-  $("table tbody tr").each((_, tr) => {
-    const tds = $(tr).find("td");
-    if (tds.length < 6) return;
+  // Находим таблицу с матчами
+  const tables = $("table");
+  console.log(`📊 Найдено таблиц: ${tables.length}`);
+  
+  const table = tables.first();
+  if (!table.length) {
+    console.log("❌ Таблица не найдена");
+    // Попробуем другие селекторы
+    console.log("🔍 Ищем другие варианты таблиц...");
+    const statsTable = $(".stats-table");
+    const matchTable = $(".match-table"); 
+    const tableClasses = $("[class*='table']");
+    console.log(`📊 .stats-table: ${statsTable.length}, .match-table: ${matchTable.length}, [class*='table']: ${tableClasses.length}`);
+    return rows;
+  }
 
-    // 1) Дата
-    const date = tds.eq(0).text().trim();
-    const dateISO = toISOfromDDMMYY(date);
+  let tableRows = table.find("tbody tr");
+  console.log(`📋 Найдено строк в tbody: ${tableRows.length}`);
+  
+  // Если нет tbody, ищем просто tr
+  if (tableRows.length === 0) {
+    tableRows = table.find("tr");
+    console.log(`📋 Найдено строк без tbody: ${tableRows.length}`);
+  }
 
-    // 2) Event — по ссылке на событие
-    const event =
-      $(tr)
-        .find('a[href^="/events/"], a[href^="/event/"]')
-        .first()
-        .text()
-        .trim() || tds.eq(1).text().trim();
+  // Парсим каждую строку таблицы
+  tableRows.each((index, tr) => {
+    const $tr = $(tr);
+    const cells = $tr.find("td");
+    
+    if (cells.length < 6) return; // Ожидаем минимум 6 колонок (дата, событие, оппонент, карта, счет, W/L)
 
-    // 3) Opponent — по ссылке на /team/
-    const opponent =
-      $(tr).find('a[href^="/team/"]').first().text().trim() ||
-      tds.eq(2).text().trim();
+    // Извлекаем данные по позициям колонок (по фактической структуре: 0-дата,1-турнир,3-оппонент,4-карта,5-счет)
+    const dateText = $(cells[0]).text().trim();
+    const eventText = $(cells[1]).text().trim(); 
+    const opponentText = $(cells[3]).text().trim();
+    const mapText = $(cells[4]).text().trim();
+    const scoreText = $(cells[5]).text().trim();
 
-    // 4) Map — ищем ссылку/текст с названием карты
-    let map = "";
-    const mapA = $(tr)
-      .find("a")
-      .filter((_, a) => MAP_RX.test($(a).text().trim()))
-      .first();
-
-    if (mapA.length) {
-      map = mapA.text().trim();
-    } else {
-      // fallback из ячейки, где обычно карта
-      map =
-        tds.eq(3).text().trim().match(MAP_RX)?.[0] || tds.eq(3).text().trim();
+    // Логируем первые несколько строк для отладки
+    if (index < 3) {
+      console.log(`Строка ${index}:`);
+      console.log(`  Колонка 0 (Дата): "${dateText}"`);
+      console.log(`  Колонка 1 (Событие): "${eventText}"`);
+      console.log(`  Колонка 3 (Противник): "${opponentText}"`);
+      console.log(`  Колонка 4 (Карта): "${mapText}"`);
+      console.log(`  Колонка 5 (Счет): "${scoreText}"`);
+      console.log(`  Всего колонок: ${cells.length}`);
     }
 
-    // 5) Счёт — ищем в ряду первый шаблон "число - число"
-    const rowText = tds
-      .map((i, td) => $(td).text())
-      .get()
-      .join(" ");
-    const m = rowText.match(/(\d+)\s*-\s*(\d+)/);
-    if (!m) return;
+    // Проверяем дату
+    const dateMatch = dateText.match(/(\d{2})\/(\d{2})\/(\d{2})/);
+    if (!dateMatch) {
+      if (index < 3) console.log(`❌ Строка ${index} пропущена: нет корректной даты`);
+      return;
+    }
 
-    const our = Number(m[1]);
-    const opp = Number(m[2]);
-    if (!Number.isFinite(our) || !Number.isFinite(opp)) return;
+    // Проверяем счет
+    const scoreMatch = scoreText.match(/(\d+)\s*-\s*(\d+)/);
+    if (!scoreMatch) {
+      if (index < 3) console.log(`❌ Строка ${index} пропущена: нет корректного счета`);
+      return;
+    }
 
-    // 6) Итог W/L по счёту
-    const wl = our > opp ? "W" : "L";
+    const [, dd, mm, yy] = dateMatch;
+    const [, our, opp] = scoreMatch;
 
-    rows.push({
-      date,
-      dateISO,
-      event,
-      opponent,
-      map,
-      our,
-      opp,
-      wl,
-      source: "HLTV",
-    });
+    // Форматируем дату
+    const dateFormatted = `${dd}.${mm}.20${yy}`;
+    const dateISO = `20${yy}-${mm}-${dd}`;
+
+    // Определяем результат
+    const ourScore = parseInt(our);
+    const oppScore = parseInt(opp);
+    const wl = ourScore > oppScore ? "W" : "L";
+
+    const matchData = {
+      date: dateFormatted,
+      dateISO: dateISO,
+      event: eventText || "Unknown Event",
+      opponent: opponentText || "Unknown Opponent",
+      map: mapText || "Unknown Map", 
+      our: ourScore,
+      opp: oppScore,
+      result: `${ourScore}:${oppScore}`,
+      wl: wl,
+      source: "HLTV"
+    };
+
+    rows.push(matchData);
   });
 
+  console.log(`📊 Обработано матчей: ${rows.length}`);
   return rows;
 }
 
@@ -501,19 +619,85 @@ app.get("/api/stats/overview", async (req, res) => {
   try {
     console.log("🎯 GET /api/stats/overview requested");
 
-    const [hltvResponse, faceitResponse] = await Promise.all([
-      fetch("http://localhost:3001/api/forze/matches"),
-      fetch("http://localhost:3001/api/faceit/stats"),
-    ]);
+    // Вместо внутренних HTTP вызовов, используем прямые вызовы функций
+    console.log("📊 Получаем данные HLTV...");
+    const hltvCached = getCache("hltv", "matches");
+    let hltvData;
+    
+    if (hltvCached) {
+      console.log("✅ Используем кэшированные данные HLTV");
+      hltvData = hltvCached;
+    } else {
+      console.log("🔄 Получаем свежие данные HLTV...");
+      try {
+        const url = `https://www.hltv.org/stats/teams/matches/${TEAM_ID}/${TEAM_SLUG}?csVersion=CS2`;
+        const html = await fetchHtml(url);
+        const matches = parseStatsMatches(html);
+        
+        const wins = matches.filter(m => m.wl === "W").length;
+        const losses = matches.filter(m => m.wl === "L").length;
+        
+        hltvData = {
+          source: "HLTV",
+          matches,
+          total: matches.length,
+          wins,
+          losses,
+          winRate: matches.length > 0 ? ((wins / matches.length) * 100).toFixed(1) : 0
+        };
+        
+        setCache("hltv", "matches", hltvData);
+      } catch (error) {
+        console.error("❌ Ошибка получения данных HLTV:", error);
+        hltvData = { source: "HLTV", matches: [], total: 0, wins: 0, losses: 0, winRate: 0 };
+      }
+    }
 
-    const hltvData = await hltvResponse.json();
-    const faceitData = await faceitResponse.json();
+    console.log("🎮 Получаем данные Faceit...");
+    const faceitCached = getCache("faceit", "stats");
+    let faceitData;
+    
+    if (faceitCached) {
+      console.log("✅ Используем кэшированные данные Faceit");
+      faceitData = faceitCached;
+    } else {
+      console.log("🔄 Получаем свежие данные Faceit...");
+      try {
+        const faceitAPI = new FaceitAPI();
+        const stats = await faceitAPI.getTeamStats("8689f8ac-c01b-40f4-96c6-9e7627665b65");
+        faceitData = stats;
+        setCache("faceit", "stats", faceitData);
+      } catch (error) {
+        console.error("❌ Ошибка получения данных Faceit:", error);
+        faceitData = { stats: { totalMatches: 0, wins: 0, losses: 0, winRate: 0 } };
+      }
+    }
+
+    // Приводим FACEIT данные к единому формату чисел
+    let faceitMatches = 0;
+    let faceitWins = 0;
+    let faceitLosses = 0;
+    let faceitWinRate = 0;
+
+    if (faceitData?.stats?.totalMatches !== undefined) {
+      // Поддержка формы { stats: { totalMatches, wins, losses, winRate } }
+      faceitMatches = Number(faceitData.stats.totalMatches) || 0;
+      faceitWins = Number(faceitData.stats.wins) || 0;
+      faceitLosses = Number(faceitData.stats.losses) || 0;
+      faceitWinRate = Number(faceitData.stats.winRate) || 0;
+    } else if (faceitData?.teamStats) {
+      // Поддержка формы из FaceitAPI.getTeamStats() с текстовыми значениями
+      const ts = faceitData.teamStats;
+      faceitMatches = Number(ts['Total Matches'] || 0) || 0;
+      faceitWins = Number(ts['Wins'] || 0) || 0;
+      faceitLosses = Number(ts['Losses'] || 0) || 0;
+      faceitWinRate = parseFloat(String(ts['Win Rate'] || '0').replace('%', '')) || 0;
+    }
 
     const overview = {
-      totalMatches:
-        (hltvData.total || 0) + (faceitData.stats?.totalMatches || 0),
-      totalWins: (hltvData.wins || 0) + (faceitData.stats?.wins || 0),
-      totalLosses: (hltvData.losses || 0) + (faceitData.stats?.losses || 0),
+      totalMatches: (hltvData.total || 0) + faceitMatches,
+      totalWins: (hltvData.wins || 0) + faceitWins,
+      totalLosses: (hltvData.losses || 0) + faceitLosses,
       overallWinRate: 0,
       hltv: {
         matches: hltvData.total || 0,
@@ -525,10 +709,10 @@ app.get("/api/stats/overview", async (req, res) => {
             : 0,
       },
       faceit: {
-        matches: faceitData.stats?.totalMatches || 0,
-        wins: faceitData.stats?.wins || 0,
-        losses: faceitData.stats?.losses || 0,
-        winRate: faceitData.stats?.winRate || 0,
+        matches: faceitMatches,
+        wins: faceitWins,
+        losses: faceitLosses,
+        winRate: faceitWinRate,
       },
       lastUpdated: new Date().toISOString(),
     };

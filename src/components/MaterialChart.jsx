@@ -58,8 +58,8 @@ const MaterialChart = ({ matches = [], showTitle = true, showStats = true, showC
     try {
       return [...matches].sort((a, b) => {
         if (!a.date || !b.date) return 0;
-        const [dayA, monthA, yearA] = a.date.split('.').map(Number);
-        const [dayB, monthB, yearB] = b.date.split('.').map(Number);
+        const [dayA, monthA, yearA] = a.date.includes('.') ? a.date.split('.').map(Number) : a.date.split('/').map(Number);
+        const [dayB, monthB, yearB] = b.date.includes('.') ? b.date.split('.').map(Number) : b.date.split('/').map(Number);
         const dateA = new Date(yearA, monthA - 1, dayA);
         const dateB = new Date(yearB, monthB - 1, dayB);
         return dateA - dateB;
@@ -77,7 +77,7 @@ const MaterialChart = ({ matches = [], showTitle = true, showStats = true, showC
     const now = new Date();
     const filteredMatches = matches.filter(match => {
       try {
-        const [day, month, year] = match.date.split('.').map(Number);
+        const [day, month, year] = match.date.includes('.') ? match.date.split('.').map(Number) : match.date.split('/').map(Number);
         const matchDate = new Date(year, month - 1, day);
         
         if (range === 'month') {
