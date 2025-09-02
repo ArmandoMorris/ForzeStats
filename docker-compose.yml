@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # Фронтенд сервис
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - forze-network
+    restart: unless-stopped
+
+  # Бэкенд сервис
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    networks:
+      - forze-network
+    restart: unless-stopped
+    volumes:
+      # Кэш для API данных
+      - forze-cache:/app/cache
+
+networks:
+  forze-network:
+    driver: bridge
+
+volumes:
+  forze-cache:
+    driver: local
