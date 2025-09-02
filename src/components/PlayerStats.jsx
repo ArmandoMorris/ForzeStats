@@ -206,9 +206,7 @@ const PlayerStats = () => {
                           <Typography variant="subtitle2">Карты</Typography>
                         </TableCell>
 
-              <TableCell align="center">
-                <Typography variant="subtitle2">K/D</Typography>
-              </TableCell>
+
               {source === "FACEIT" && (
                 <TableCell align="center">
                   <Typography variant="subtitle2">Win Rate</Typography>
@@ -262,11 +260,7 @@ const PlayerStats = () => {
                   </Typography>
                 </TableCell>
 
-                <TableCell align="center">
-                  <Typography variant="body2">
-                    {player.stats?.kd || "0.00"}
-                  </Typography>
-                </TableCell>
+
                 {source === "FACEIT" && (
                   <TableCell align="center">
                     <Typography variant="body2">

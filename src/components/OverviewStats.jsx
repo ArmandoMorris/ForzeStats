@@ -178,7 +178,7 @@ const OverviewStats = () => {
                 HLTV Статистика
               </Typography>
               <Divider sx={{ mb: 2 }} />
-              <Grid container spacing={2}>
+              <Grid container justifyContent={"center"} spacing={2}>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="text.secondary">
                     Матчи
@@ -220,7 +220,7 @@ const OverviewStats = () => {
                 FACEIT Статистика
               </Typography>
               <Divider sx={{ mb: 2 }} />
-              <Grid container spacing={2}>
+              <Grid container justifyContent={"center"} spacing={2}>
                 <Grid item xs={4}>
                   <Typography variant="body2" color="text.secondary">
                     Матчи
@@ -259,7 +259,7 @@ const OverviewStats = () => {
           <EmojiEvents sx={{ mr: 1, verticalAlign: "middle" }} />
           Источники данных
         </Typography>
-        <Grid container spacing={2} sx={{ mt: 1 }}>
+        <Grid container justifyContent={"center"} spacing={2} sx={{ mt: 1 }}>
           <Grid item xs={12} md={6}>
             <Typography variant="body2" color="text.secondary">
               <strong>HLTV:</strong> Официальные турнирные матчи и статистика

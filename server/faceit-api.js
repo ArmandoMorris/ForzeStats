@@ -97,9 +97,9 @@ class FaceitAPI {
       const lifetime = data.lifetime || {};
       
       return {
-        totalMatches: parseInt(lifetime['Matches'] || 0), // Используем правильное поле
+        totalMatches: parseInt(lifetime['Matches'] || 0),
         wins: parseInt(lifetime['Wins'] || 0),
-        losses: parseInt(lifetime['Matches'] || 0) - parseInt(lifetime['Wins'] || 0), // Используем правильное поле
+        losses: parseInt(lifetime['Matches'] || 0) - parseInt(lifetime['Wins'] || 0),
         winRate: parseFloat(lifetime['Win Rate %'] || 0),
         averageKDRatio: parseFloat(lifetime['Team Average K/D Ratio'] || 0),
         currentStreak: lifetime['Current Win Streak'] || '0',
@@ -150,10 +150,8 @@ class FaceitAPI {
       // Вычисляем skill level из segments (берем самый высокий уровень)
       let skillLevel = 0;
       if (data.segments && data.segments.length > 0) {
-        // Ищем уровень в сегментах карт
         const mapSegments = data.segments.filter(seg => seg.type === 'Map');
         if (mapSegments.length > 0) {
-          // Берем средний уровень по картам или максимальный
           const levels = mapSegments.map(seg => parseInt(seg.stats?.['Skill Level'] || 0)).filter(l => l > 0);
           if (levels.length > 0) {
             skillLevel = Math.max(...levels);
@@ -161,48 +159,40 @@ class FaceitAPI {
         }
       }
       
-      // Если не нашли в сегментах, ищем в lifetime
       if (skillLevel === 0) {
         skillLevel = parseInt(lifetime['Skill Level'] || 0);
       }
       
-      // Если все еще нет skill level, вычисляем примерный уровень на основе статистики
       if (skillLevel === 0) {
         const winRate = parseFloat(lifetime['Win Rate %'] || 0);
         const avgKDRatio = parseFloat(lifetime['Average K/D Ratio'] || 0);
         const totalMatches = parseInt(lifetime['Matches'] || 0);
         
-        // Простая формула для оценки уровня
         if (totalMatches > 0) {
           const baseLevel = Math.floor((winRate / 10) + (avgKDRatio * 2));
           skillLevel = Math.max(1, Math.min(10, baseLevel));
         }
       }
       
-      // Вычисляем ELO-подобный рейтинг на основе статистики
       const winRate = parseFloat(lifetime['Win Rate %'] || 0);
       const avgKDRatio = parseFloat(lifetime['Average K/D Ratio'] || 0);
       const totalMatches = parseInt(lifetime['Matches'] || 0);
       
-      // Формула для ELO-подобного рейтинга
-      let eloRating = 1000; // Базовый рейтинг
+      let eloRating = 1000;
       if (totalMatches > 0) {
-        // Учитываем win rate и K/D ratio
-        const winRateBonus = (winRate - 50) * 10; // Бонус за win rate выше 50%
-        const kdBonus = (avgKDRatio - 1.0) * 200; // Бонус за K/D выше 1.0
+        const winRateBonus = (winRate - 50) * 10;
+        const kdBonus = (avgKDRatio - 1.0) * 200;
         eloRating = Math.max(500, Math.min(2000, 1000 + winRateBonus + kdBonus));
       }
       
-      // Вычисляем total deaths из K/D ratio
       const totalKills = parseInt(lifetime['Total Kills with extended stats'] || 0);
       const totalDeaths = avgKDRatio > 0 ? Math.round(totalKills / avgKDRatio) : 0;
       
-      // Получаем информацию о игроке для настоящего ELO
       const playerInfo = await this.getPlayerInfo(playerId);
       
       return {
         skillLevel: skillLevel,
-        eloRating: playerInfo.faceitElo, // Настоящий ELO рейтинг
+        eloRating: playerInfo.faceitElo,
         totalMatches: parseInt(lifetime['Matches'] || 0),
         wins: parseInt(lifetime['Wins'] || 0),
         losses: parseInt(lifetime['Matches'] || 0) - parseInt(lifetime['Wins'] || 0),
@@ -240,12 +230,70 @@ class FaceitAPI {
     }
   }
 
-  // Получение матчей команды через историю игрока с фильтрацией
+  // Получение детальной информации о матче (включая все карты BO3)
+  async getMatchDetails(matchId) {
+    try {
+      console.log(`🔍 Получаем детали матча: ${matchId}`);
+      
+      const data = await this.makeRequest(`/matches/${matchId}`);
+      
+      if (!data) {
+        console.log(`⚠️ Не удалось получить детали матча ${matchId}`);
+        return null;
+      }
+      
+      const teams = data.teams || {};
+      const ourTeam = Object.values(teams).find(team => team.faction_id === this.teamId);
+      
+      if (!ourTeam) {
+        console.log(`⚠️ Наша команда не найдена в матче ${matchId}`);
+        return null;
+      }
+      
+      const ourFaction = Object.keys(teams).find(key => teams[key].faction_id === this.teamId);
+      const oppFaction = ourFaction === 'faction1' ? 'faction2' : 'faction1';
+      const opponent = teams[oppFaction]?.name || 'Unknown';
+      
+      const results = data.results || {};
+      const score = results.score || {};
+      
+      const ourTotalScore = score[ourFaction] || 0;
+      const oppTotalScore = score[oppFaction] || 0;
+      
+      const isWin = ourTotalScore > oppTotalScore;
+      
+      const mapResults = data.voting?.map_pick || [];
+      
+      console.log(`📊 Матч ${matchId}:`);
+      console.log(`  Противник: ${opponent}`);
+      console.log(`  Наш общий счет: ${ourTotalScore}`);
+      console.log(`  Счет противника: ${oppTotalScore}`);
+      console.log(`  Результат матча: ${isWin ? 'Победа' : 'Поражение'}`);
+      console.log(`  Количество карт: ${mapResults.length}`);
+      
+      return {
+        matchId: matchId,
+        opponent: opponent,
+        ourScore: ourTotalScore,
+        oppScore: oppTotalScore,
+        isWin: isWin,
+        totalMaps: mapResults.length,
+        competition: data.competition_name || 'FACEIT',
+        date: data.started_at ? new Date(data.started_at * 1000).toISOString().split('T')[0] : 'Unknown',
+        mapResults: mapResults
+      };
+      
+    } catch (error) {
+      console.error(`❌ Ошибка получения деталей матча ${matchId}:`, error.message);
+      return null;
+    }
+  }
+
+  // Получение матчей команды через историю игрока с улучшенной фильтрацией
   async getTeamMatches(offset = 0, limit = 100) {
     try {
-      console.log(`🎮 Получаем матчи команды FACEIT (offset: ${offset}, limit: ${limit})...`);
+      console.log(`🎮 Получаем матчи команды FACEIT через историю игрока (offset: ${offset}, limit: ${limit})...`);
       
-      // Получаем информацию о команде
       const teamInfo = await this.getTeamInfo();
       console.log(`👥 Найдено игроков в команде: ${teamInfo.members?.length || 0}`);
       
@@ -254,31 +302,93 @@ class FaceitAPI {
         return [];
       }
       
-      // Получаем матчи капитана команды
       const captain = teamInfo.members.find(member => member.user_id === teamInfo.leader) || teamInfo.members[0];
       console.log(`🎯 Получаем матчи капитана: ${captain.nickname} (${captain.user_id})`);
       
       const data = await this.makeRequest(`/players/${captain.user_id}/history?offset=${offset}&limit=${limit}`, true);
       console.log(`✅ Получено ${data.items?.length || 0} матчей из истории игрока`);
       
-      // Фильтруем только матчи команды FORZE Reload
+      // Вычисляем дату 3 месяца назад для фильтрации
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      console.log(`📅 Фильтруем матчи не старше: ${threeMonthsAgo.toISOString().split('T')[0]}`);
+      
+      // СТРОГАЯ фильтрация: проверяем что это именно командный матч FORZE Reload
       const teamMatches = (data.items || []).filter(match => {
-        if (!match.teams) return false;
+        if (!match.teams) {
+          console.log(`⚠️ Пропускаем матч ${match.match_id} - нет teams`);
+          return false;
+        }
         
         // Проверяем, есть ли наша команда в матче
         const ourTeam = Object.values(match.teams).find(team => team.team_id === this.teamId);
-        return ourTeam !== undefined;
+        if (!ourTeam) {
+          console.log(`⚠️ Пропускаем матч ${match.match_id} - FORZE Reload не участвует`);
+          return false;
+        }
+        
+        // Проверяем что матч завершен
+        if (match.finished === 0) {
+          console.log(`⚠️ Пропускаем незавершенный матч ${match.match_id}`);
+          return false;
+        }
+        
+        // КРИТИЧЕСКАЯ ПРОВЕРКА: фильтрация по дате - исключаем старые матчи
+        if (match.started_at) {
+          const matchDate = new Date(match.started_at * 1000);
+          if (matchDate < threeMonthsAgo) {
+            console.log(`⚠️ Пропускаем старый матч ${match.match_id} от ${matchDate.toISOString().split('T')[0]} (старше 3 месяцев)`);
+            return false;
+          }
+        }
+        
+        // Дополнительная проверка: убеждаемся что это командный матч, а не 5v5
+        if (match.i1 === '5v5') {
+          console.log(`⚠️ Пропускаем 5v5 матч ${match.match_id} - не командный`);
+          return false;
+        }
+        
+        // КРИТИЧЕСКАЯ ПРОВЕРКА: проверяем что игрок играл именно за FORZE Reload в этом матче
+        // Если в матче есть наша команда, но игрок играл за другую - пропускаем
+        if (match.teams && match.teams.faction1 && match.teams.faction2) {
+          const faction1TeamId = match.teams.faction1.team_id;
+          const faction2TeamId = match.teams.faction2.team_id;
+          
+          // Проверяем что FORZE Reload участвует в матче
+          if (faction1TeamId !== this.teamId && faction2TeamId !== this.teamId) {
+            console.log(`⚠️ Пропускаем матч ${match.match_id} - FORZE Reload не участвует (f1: ${faction1TeamId}, f2: ${faction2TeamId})`);
+            return false;
+          }
+          
+          // Проверяем что игрок играл именно за FORZE Reload
+          const playerTeamId = match.team_id || match.teamId;
+          if (playerTeamId && playerTeamId !== this.teamId) {
+            console.log(`⚠️ Пропускаем матч ${match.match_id} - игрок играл за другую команду: ${playerTeamId}`);
+            return false;
+          }
+        }
+        
+        // Проверяем что это не матч где игроки играли за другие команды
+        // Если в матче есть наша команда, но это не командный матч - пропускаем
+        if (match.i1 && match.i1 !== '5v5' && match.i1 !== 'Team') {
+          console.log(`⚠️ Пропускаем матч ${match.match_id} - тип: ${match.i1}`);
+          return false;
+        }
+        
+        console.log(`✅ Включаем матч ${match.match_id} против ${ourTeam.nickname || 'Unknown'}`);
+        return true;
       });
       
-      console.log(`🔍 Отфильтровано ${teamMatches.length} матчей команды FORZE Reload из ${data.items?.length || 0}`);
+      console.log(`🔍 Отфильтровано ${teamMatches.length} командных матчей FORZE Reload из ${data.items?.length || 0}`);
       return teamMatches;
+      
     } catch (error) {
       console.error('❌ Ошибка получения матчей команды:', error.message);
       return [];
     }
   }
 
-  // Получение всех матчей команды
+  // Получение всех матчей команды с детальной информацией
   async getAllMatches() {
     try {
       console.log('🔄 Получаем все матчи команды FACEIT...');
@@ -288,7 +398,7 @@ class FaceitAPI {
       const limit = 100;
       let hasMore = true;
       let requestCount = 0;
-      const maxRequests = 40; // Увеличиваем лимит запросов до 40 (4000 матчей)
+      const maxRequests = 40;
       
       while (hasMore && requestCount < maxRequests) {
         console.log(`📥 Запрос ${requestCount + 1}/${maxRequests}: offset=${offset}, limit=${limit}`);
@@ -304,180 +414,82 @@ class FaceitAPI {
           offset += limit;
           
           console.log(`📊 Всего получено матчей команды: ${allMatches.length}`);
-          
-          // Небольшая задержка между запросами
           await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
       
       console.log(`✅ Итого получено ${allMatches.length} матчей команды FORZE Reload`);
-      return allMatches;
+      
+      // Теперь получаем детальную информацию для каждого матча
+      console.log('🔍 Получаем детальную информацию для каждого матча...');
+      const detailedMatches = [];
+      
+      for (let i = 0; i < allMatches.length; i++) {
+        const match = allMatches[i];
+        console.log(`📋 Обрабатываем матч ${i + 1}/${allMatches.length}: ${match.match_id}`);
+        
+        try {
+          const matchDetails = await this.getMatchDetails(match.match_id);
+          if (matchDetails) {
+            detailedMatches.push(matchDetails);
+          }
+        } catch (error) {
+          console.log(`⚠️ Ошибка получения деталей матча ${match.match_id}: ${error.message}`);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      console.log(`✅ Получены детали для ${detailedMatches.length} матчей`);
+      return detailedMatches;
+      
     } catch (error) {
       console.error('❌ Ошибка получения всех матчей:', error.message);
       throw error;
     }
   }
 
-  // Группировка карт в полные матчи
-  groupMapsIntoMatches(matches) {
-    console.log('🔍 Группируем карты в полные матчи...');
-    
-    // Группируем по competition_id и дате
-    const matchGroups = {};
-    
-    matches.forEach(match => {
-      const competitionId = match.competition_id || match.match_id;
-      const date = new Date(match.started_at * 1000 || match.date).toISOString().split('T')[0];
-      const opponent = this.getOpponentFromMatch(match);
-      const event = match.competition_name || 'FACEIT';
-      
-      const key = `${competitionId}_${date}_${opponent}_${event}`;
-      
-      if (!matchGroups[key]) {
-        matchGroups[key] = {
-          competitionId,
-          date,
-          opponent,
-          event,
-          maps: [],
-          ourWins: 0,
-          oppWins: 0,
-          totalMaps: 0
-        };
-      }
-      
-      // Добавляем карту в группу
-      const isWin = this.isWinFromMatch(match);
-      matchGroups[key].maps.push({
-        map: this.getMapFromMatch(match),
-        ourScore: this.getOurScoreFromMatch(match),
-        oppScore: this.getOppScoreFromMatch(match),
-        isWin
-      });
-      
-      if (isWin) {
-        matchGroups[key].ourWins++;
-      } else {
-        matchGroups[key].oppWins++;
-      }
-      matchGroups[key].totalMaps++;
-    });
-    
-    // Преобразуем группы в полные матчи
-    const fullMatches = Object.values(matchGroups).map(group => {
-      const isWin = group.ourWins > group.oppWins;
-      const mapsPlayed = group.maps.length;
-      const bestOf = this.determineBestOf(mapsPlayed);
-      
-      return {
-        id: group.competitionId,
-        date: group.date,
-        dateISO: new Date(group.date).toISOString(),
-        event: group.event,
-        opponent: group.opponent,
-        our: group.ourWins,
-        opp: group.oppWins,
-        result: `${group.ourWins}:${group.oppWins}`,
-        wl: isWin ? 'W' : 'L',
-        source: 'FACEIT',
-        maps: group.maps,
-        bestOf: bestOf,
-        totalMaps: group.totalMaps,
-        eloChange: '0'
-      };
-    });
-    
-    console.log(`✅ Сгруппировано ${matches.length} карт в ${fullMatches.length} полных матчей`);
-    return fullMatches;
-  }
-  
-  // Вспомогательные методы для извлечения данных из матча
-  getOpponentFromMatch(match) {
-    if (match.results && match.teams) {
-      const teams = match.teams;
-      const otherTeam = Object.values(teams).find(team => team.team_id !== this.teamId);
-      return otherTeam?.nickname || 'Unknown';
-    } else if (match.i19) {
-      return match.i19;
-    }
-    return 'Unknown';
-  }
-  
-  isWinFromMatch(match) {
-    if (match.results && match.teams) {
-      const results = match.results;
-      const teams = match.teams;
-      const ourFaction = Object.keys(teams).find(key => teams[key].team_id === this.teamId);
-      return results.winner === ourFaction;
-    } else if (match.i18 !== undefined) {
-      return match.i18 === '1';
-    }
-    return false;
-  }
-  
-  getMapFromMatch(match) {
-    // Пока карта недоступна в API
-    return 'Unknown';
-  }
-  
-  getOurScoreFromMatch(match) {
-    if (match.results && match.teams) {
-      const results = match.results;
-      const teams = match.teams;
-      const ourFaction = Object.keys(teams).find(key => teams[key].team_id === this.teamId);
-      const score = results.score;
-      return score ? (score[ourFaction] || 0) : 0;
-    } else if (match.i20) {
-      return parseInt(match.i20) || 0;
-    }
-    return 0;
-  }
-  
-  getOppScoreFromMatch(match) {
-    if (match.results && match.teams) {
-      const results = match.results;
-      const teams = match.teams;
-      const ourFaction = Object.keys(teams).find(key => teams[key].team_id === this.teamId);
-      const score = results.score;
-      const oppFaction = ourFaction === 'faction1' ? 'faction2' : 'faction1';
-      return score ? (score[oppFaction] || 0) : 0;
-    } else if (match.i21) {
-      return parseInt(match.i21) || 0;
-    }
-    return 0;
-  }
-  
-  determineBestOf(mapsPlayed) {
-    if (mapsPlayed <= 1) return 1;
-    if (mapsPlayed <= 3) return 3;
-    if (mapsPlayed <= 5) return 5;
-    return mapsPlayed;
-  }
-
-  // Форматирование матчей для фронтенда (обновленная версия)
+  // Форматирование матчей для фронтенда
   formatMatchesForFrontend(matches) {
-    // Сначала группируем карты в полные матчи
-    const fullMatches = this.groupMapsIntoMatches(matches);
-    
-    return fullMatches.map(match => {
-      const date = new Date(match.dateISO);
+    return matches.map(match => {
+      let date, dateISO;
+      
+      try {
+        // Проверяем, что дата валидная
+        if (match.date && match.date !== 'Unknown') {
+          date = new Date(match.date);
+          if (isNaN(date.getTime())) {
+            // Если дата невалидная, используем текущую
+            date = new Date();
+          }
+        } else {
+          // Если даты нет, используем текущую
+          date = new Date();
+        }
+        
+        dateISO = date.toISOString();
+      } catch (error) {
+        console.log(`⚠️ Ошибка парсинга даты для матча ${match.matchId}: ${match.date}`);
+        date = new Date();
+        dateISO = date.toISOString();
+      }
       
       return {
-        id: match.id,
-        date: match.date,
-        dateISO: match.dateISO,
-        event: match.event,
-        opponent: match.opponent,
-        map: `Best of ${match.bestOf}`, // Показываем формат матча
-        our: match.our,
-        opp: match.opp,
-        result: match.result,
-        wl: match.wl,
+        id: match.matchId,
+        date: match.date || date.toISOString().split('T')[0],
+        dateISO: dateISO,
+        event: match.competition || 'FACEIT',
+        opponent: match.opponent || 'Unknown',
+        map: `Best of ${match.totalMaps || 1}`,
+        our: match.ourScore || 0,
+        opp: match.oppScore || 0,
+        result: `${match.ourScore || 0}:${match.oppScore || 0}`,
+        wl: match.isWin ? 'W' : 'L',
         source: 'FACEIT',
-        eloChange: match.eloChange,
-        maps: match.maps, // Сохраняем детали карт
-        bestOf: match.bestOf,
-        totalMaps: match.totalMaps
+        eloChange: '0',
+        maps: match.mapResults || [],
+        bestOf: match.totalMaps || 1,
+        totalMaps: match.totalMaps || 1
       };
     });
   }
@@ -487,7 +499,6 @@ class FaceitAPI {
     try {
       console.log('🎯 Получаем полные данные команды FACEIT...');
       
-      // Сначала попробуем найти правильный team ID
       const searchResults = await this.searchTeam('FORZE Reload');
       if (searchResults.length > 0) {
         this.teamId = searchResults[0].team_id;
